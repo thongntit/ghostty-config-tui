@@ -59,6 +59,12 @@ func TestNewDiscoversUserConfig(t *testing.T) {
 	if got, want := model.ui.Status(), "Loaded discovered config: "+path; got != want {
 		t.Fatalf("startup status = %q, want %q", got, want)
 	}
+	if model.ui.ReadOnly() {
+		t.Fatal("single discovered config unexpectedly disabled scalar editing")
+	}
+	if !model.ui.CanEdit("theme") {
+		t.Fatal("single discovered config did not expose the theme editor")
+	}
 }
 
 func TestNewUsesHighestPrecedenceUserConfigAndExplainsMultipleFiles(t *testing.T) {
@@ -82,6 +88,9 @@ func TestNewUsesHighestPrecedenceUserConfigAndExplainsMultipleFiles(t *testing.T
 	wantStatus := "Loaded effective config through " + legacy + " (2 default roots)"
 	if got := model.ui.Status(); got != wantStatus {
 		t.Fatalf("startup status = %q, want %q", got, wantStatus)
+	}
+	if !model.ui.ReadOnly() {
+		t.Fatal("multiple discovered roots unexpectedly enabled editing")
 	}
 }
 

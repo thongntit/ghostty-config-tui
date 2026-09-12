@@ -27,8 +27,10 @@ type Model struct {
 	ui tui.Model
 }
 
-// New discovers or loads Ghostty config roots, builds a read-only effective
-// graph, and creates a dry-run editor for it. Discovery never creates files.
+// New discovers or loads Ghostty config roots, builds an effective graph, and
+// creates a dry-run editor for it. Discovery never creates files. A single
+// root without includes keeps the safe scalar editor enabled; graph inputs
+// with multiple files remain read-only until edit targets are explicit.
 func New(options Options) (Model, error) {
 	configPath := options.ConfigPath
 	loadStatus := ""
@@ -63,7 +65,7 @@ func New(options Options) (Model, error) {
 		return Model{}, fmt.Errorf("load embedded Ghostty catalog: %w", err)
 	}
 	readOnly := true
-	if options.ConfigPath != "" && len(graph.Includes) == 0 {
+	if len(roots) == 1 && len(graph.Includes) == 0 {
 		catalog = catalog.WithBootstrapEditors()
 		readOnly = false
 	}

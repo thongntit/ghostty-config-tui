@@ -2,9 +2,30 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/thongntit/ghostty-config-tui/internal/schema"
 )
+
+func valueHint(option schema.Option) string {
+	if len(option.Values) > 0 {
+		return strings.Join(option.Values, " | ")
+	}
+	switch option.Kind {
+	case schema.KindBoolean:
+		return "true or false"
+	case schema.KindNumber:
+		return "finite number"
+	case schema.KindColor:
+		return "#RRGGBB or named color"
+	case schema.KindPath:
+		return "path"
+	case schema.KindDuration:
+		return "0, 250ms, or 1s 200ms"
+	default:
+		return "enter a value"
+	}
+}
 
 func (m Model) optionStatus(option schema.Option) string {
 	if m.graph != nil {

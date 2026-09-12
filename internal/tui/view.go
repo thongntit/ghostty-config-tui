@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/thongntit/ghostty-config-tui/internal/schema"
 )
 
 func (m Model) View() tea.View {
@@ -140,13 +141,18 @@ func (m Model) renderEdit() string {
 		accentStyle.Render("Edit value"),
 		selectedStyle.Render(option.Key),
 		mutedStyle.Render(option.Description),
+		mutedStyle.Render("Expected: " + valueHint(option)),
 		"",
 		m.input.View(),
 	}
 	if m.editError != nil {
 		rows = append(rows, "", errorStyle.Render(m.editError.Error()))
 	}
-	rows = append(rows, "", mutedStyle.Render("enter stage · esc cancel"))
+	shortcut := "enter stage · esc cancel"
+	if len(option.Values) > 0 || option.Kind == schema.KindBoolean {
+		shortcut = "←/→ choose · enter stage · esc cancel"
+	}
+	rows = append(rows, "", mutedStyle.Render(shortcut))
 	return panelStyle.Render(strings.Join(rows, "\n"))
 }
 
@@ -169,6 +175,10 @@ func (m Model) footer() string {
 	}
 	switch m.mode {
 	case ModeEdit:
+		option, ok := m.selectedOption()
+		if ok && (len(option.Values) > 0 || option.Kind == schema.KindBoolean) {
+			return mutedStyle.Render("←/→ choose · enter stage · esc cancel")
+		}
 		return mutedStyle.Render("enter stage · esc cancel")
 	case ModePreview:
 		return mutedStyle.Render("↑/k ↓/j scroll · pgup/pgdn page · esc back · q quit")

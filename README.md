@@ -54,10 +54,14 @@ Browse with `↑`/`k` and `↓`/`j`. Press `enter` or `e` to edit a supported sc
 to preview the candidate document. `q` asks for confirmation when changes are
 staged. Repeatable values such as `keybind` are visible but read-only for now.
 
-The full discovered catalog currently supports read-only browsing/search and
-effective-value preview. Explicit single-file mode retains the small scalar
-dry-run editors. All modes keep original and draft documents separate and do
-not invoke Ghostty or write any file.
+The full discovered catalog supports read-only browsing/search and
+effective-value preview. A single discovered or explicit root with no
+`config-file` includes also exposes the initial safe scalar editors (`theme`,
+`font-size`, `background`, and `foreground`); boolean controls use left/right
+toggle and typed values are checked before staging. Multiple roots, includes,
+repeatable values, and special grammars remain read-only until their source
+target can be selected safely. All modes keep original and draft documents
+separate and do not invoke Ghostty or write any file.
 
 Architecture and implementation decisions are recorded in
 [`docs/tech-stack.md`](docs/tech-stack.md).

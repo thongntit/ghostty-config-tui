@@ -235,7 +235,7 @@ func (m Model) updateEdit(msg tea.Msg) (Model, tea.Cmd) {
 	}
 
 	if keyPressed {
-		if option, ok := m.selectedOption(); ok && len(option.Values) > 0 {
+		if option, ok := m.selectedOption(); ok && (len(option.Values) > 0 || option.Kind == schema.KindBoolean) {
 			switch {
 			case key.Matches(keyMsg, defaultKeyMap.Left):
 				m.cycleInput(option, -1)
@@ -319,7 +319,7 @@ func (m *Model) beginEdit() tea.Cmd {
 		return nil
 	}
 	if m.readOnly {
-		m.status = "Full catalog view is read-only in this slice"
+		m.status = "Full catalog view is read-only until an edit target is selected"
 		return nil
 	}
 	if !option.Editable() {
@@ -334,7 +334,7 @@ func (m *Model) beginEdit() tea.Cmd {
 	value, _ := m.draft.Lookup(option.Key)
 	m.input = textinput.New()
 	m.input.Prompt = option.Key + " = "
-	m.input.Placeholder = "enter a value"
+	m.input.Placeholder = valueHint(option)
 	m.input.CharLimit = 1024
 	m.input.SetValue(value)
 	m.input.CursorEnd()
@@ -397,6 +397,10 @@ func (m *Model) resetSelected() {
 	if !ok || !option.Editable() {
 		return
 	}
+	if m.readOnly {
+		m.status = "Full catalog view is read-only until an edit target is selected"
+		return
+	}
 	if len(m.draft.Assignments(option.Key)) > 1 {
 		m.status = fmt.Sprintf("%s has duplicate assignments and is read-only", option.Key)
 		return
@@ -426,19 +430,26 @@ func (m *Model) revertSelected() {
 }
 
 func (m *Model) cycleInput(option schema.Option, delta int) {
-	if len(option.Values) == 0 {
+	values := option.Values
+	if option.Kind == schema.KindBoolean && len(values) == 0 {
+		values = []string{"false", "true"}
+	}
+	if len(values) == 0 {
 		return
 	}
 	current := m.input.Value()
+	if current == "" && option.Default != "" {
+		current = option.Default
+	}
 	index := 0
-	for candidateIndex, value := range option.Values {
+	for candidateIndex, value := range values {
 		if value == current {
 			index = candidateIndex
 			break
 		}
 	}
-	index = (index + delta + len(option.Values)) % len(option.Values)
-	m.input.SetValue(option.Values[index])
+	index = (index + delta + len(values)) % len(values)
+	m.input.SetValue(values[index])
 	m.input.Err = nil
 	m.editError = nil
 }
@@ -473,6 +484,25 @@ func (m Model) OriginalBytes() []byte {
 
 func (m Model) Status() string {
 	return m.status
+}
+
+// ReadOnly reports whether this model can stage edits. It is useful to hosts
+// that need to explain why a discovered multi-file graph is browse-only.
+func (m Model) ReadOnly() bool {
+	return m.readOnly
+}
+
+// CanEdit reports whether a catalog option is exposed by the current editor.
+func (m Model) CanEdit(key string) bool {
+	if m.readOnly {
+		return false
+	}
+	for _, option := range m.options {
+		if option.Key == key {
+			return option.Editable()
+		}
+	}
+	return false
 }
 
 func (m Model) EditError() error {

@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // ValueKind identifies the editor a schema option will eventually use.
@@ -62,6 +64,9 @@ type Catalog struct {
 	Options        []Option `json:"options"`
 }
 
+var durationComponentPattern = regexp.MustCompile(`^[0-9]+(?:\.[0-9]+)?(?:ns|us|µs|ms|s|m|h)$`)
+var durationSequencePattern = regexp.MustCompile(`^(?:[0-9]+(?:\.[0-9]+)?(?:ns|us|µs|ms|s|m|h))+$`)
+
 // Load decodes a reviewed schema catalog from JSON.
 func Load(r io.Reader) (Catalog, error) {
 	var catalog Catalog
@@ -104,7 +109,13 @@ func (o Option) Validate(value string) error {
 		return fmt.Errorf("value must be one of: %s", strings.Join(o.Values, ", "))
 	}
 
-	if o.Kind == KindNumber {
+	trimmed := strings.TrimSpace(value)
+	switch o.Kind {
+	case KindBoolean:
+		if trimmed != "true" && trimmed != "false" {
+			return fmt.Errorf("value must be true or false")
+		}
+	case KindNumber:
 		number, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
 		if err != nil || math.IsNaN(number) || math.IsInf(number, 0) {
 			return fmt.Errorf("value must be a finite number")
@@ -115,8 +126,74 @@ func (o Option) Validate(value string) error {
 		if o.Max != nil && number > *o.Max {
 			return fmt.Errorf("value must be at most %g", *o.Max)
 		}
+	case KindColor:
+		if !validColor(trimmed) {
+			return fmt.Errorf("value must be a hex color or a named color")
+		}
+	case KindPath:
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("path must not be blank")
+		}
+	case KindDuration:
+		if !validDuration(trimmed) {
+			return fmt.Errorf("value must be a non-negative duration such as 250ms or 1s 200ms")
+		}
 	}
 	return nil
+}
+
+func validColor(value string) bool {
+	if value == "" {
+		return false
+	}
+	if strings.HasPrefix(value, "#") {
+		hex := value[1:]
+		if len(hex) != 6 {
+			return false
+		}
+		for _, character := range hex {
+			if !isHexDigit(character) {
+				return false
+			}
+		}
+		return true
+	}
+	for _, character := range value {
+		if unicode.IsLetter(character) || unicode.IsDigit(character) || character == '-' || character == '_' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func isHexDigit(character rune) bool {
+	return character >= '0' && character <= '9' || character >= 'a' && character <= 'f' || character >= 'A' && character <= 'F'
+}
+
+func validDuration(value string) bool {
+	if value == "0" {
+		return true
+	}
+	if number, err := strconv.ParseFloat(value, 64); err == nil {
+		return number >= 0 && !math.IsNaN(number) && !math.IsInf(number, 0)
+	}
+	if strings.ContainsAny(value, "\r\n") {
+		return false
+	}
+	parts := strings.Fields(value)
+	if len(parts) == 0 {
+		return false
+	}
+	if len(parts) == 1 {
+		return durationSequencePattern.MatchString(parts[0])
+	}
+	for _, part := range parts {
+		if !durationComponentPattern.MatchString(part) {
+			return false
+		}
+	}
+	return true
 }
 
 // Editable reports whether the option can be changed by the current editor.

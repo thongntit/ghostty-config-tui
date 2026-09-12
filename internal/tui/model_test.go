@@ -98,6 +98,49 @@ func TestInvalidValueStaysInEditAndDirtyQuitConfirms(t *testing.T) {
 	}
 }
 
+func TestBooleanEditorCyclesAndStagesTypedValue(t *testing.T) {
+	original := configdoc.Parse([]byte("confirm-close-surface = false\n"))
+	options := []schema.Option{{
+		Key:         "confirm-close-surface",
+		Category:    "General",
+		Kind:        schema.KindBoolean,
+		Edit:        schema.EditScalar,
+		Description: "Confirm before closing.",
+	}}
+	model := NewModel(options, "fixture.ghostty", original)
+
+	model, _ = model.Update(printable("e"))
+	if model.Mode() != ModeEdit {
+		t.Fatalf("expected edit mode, got %v", model.Mode())
+	}
+	model, _ = model.Update(special(tea.KeyRight))
+	if got := model.input.Value(); got != "true" {
+		t.Fatalf("boolean toggle value = %q, want true", got)
+	}
+	model, _ = model.Update(special(tea.KeyEnter))
+	if got := string(model.DraftBytes()); got != "confirm-close-surface = true\n" {
+		t.Fatalf("unexpected boolean draft: %q", got)
+	}
+}
+
+func TestReadOnlyGraphRejectsReset(t *testing.T) {
+	original := configdoc.Parse([]byte("theme = dark\n"))
+	graph := configgraph.Graph{
+		Roots:       []string{"config.ghostty"},
+		Files:       []configgraph.File{{Path: "config.ghostty", Document: original}},
+		Assignments: []configgraph.Assignment{{Key: "theme", Value: "dark", Path: "config.ghostty", Line: 1}},
+	}
+	options := []schema.Option{{Key: "theme", Kind: schema.KindString, Edit: schema.EditScalar}}
+	model := NewGraphModel(options, "config.ghostty", original, graph)
+	model, _ = model.Update(printable("r"))
+	if model.HasChanges() {
+		t.Fatal("read-only graph reset staged a change")
+	}
+	if !strings.Contains(model.Status(), "read-only") {
+		t.Fatalf("read-only reset status = %q", model.Status())
+	}
+}
+
 func TestGraphModelSearchesCatalogAndShowsEffectiveSource(t *testing.T) {
 	original := configdoc.Parse([]byte("theme = dark\nfont-size = 14\n"))
 	graph := configgraph.Graph{
