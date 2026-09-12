@@ -71,10 +71,30 @@ func New(options Options) (Model, error) {
 	}
 	ui := tui.NewGraphModel(optionsWithUnknowns(catalog.Options, graph), configPath, document, graph)
 	ui.SetReadOnly(readOnly)
+	if !readOnly {
+		loadChoiceProviders(&ui)
+	}
 	ui.SetStatus(loadStatus)
 	return Model{
 		ui: ui,
 	}, nil
+}
+
+func loadChoiceProviders(ui *tui.Model) {
+	binary := ghostty.Find()
+	if binary == "" {
+		return
+	}
+	if themes, err := ghostty.ListThemes(binary); err == nil {
+		ui.SetThemeChoices(themes)
+	}
+	if colors, err := ghostty.ListColors(binary); err == nil {
+		choices := make([]tui.ColorChoice, len(colors))
+		for index, color := range colors {
+			choices[index] = tui.ColorChoice{Name: color.Name, Value: color.Value}
+		}
+		ui.SetColorChoices(choices)
+	}
 }
 
 func optionsWithUnknowns(options []schema.Option, graph configgraph.Graph) []schema.Option {

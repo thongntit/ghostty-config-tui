@@ -26,6 +26,9 @@ are intentionally deferred until the MVP proves they are needed.
   through the installed Ghostty binary.
 - `internal/configgraph` owns recursive `config-file` loading, root/include
   precedence, cycle and missing-file diagnostics, and assignment provenance.
+- `internal/ghostty` also exposes optional, safe action-backed inventories for
+  themes and named colors; the TUI falls back without making startup depend on
+  Ghostty being installed.
 - `internal/storage` owns conflict detection, backups, permissions, symlink-safe
   writes, and atomic replacement.
 - `internal/tui` owns interaction and rendering; it talks to the other packages

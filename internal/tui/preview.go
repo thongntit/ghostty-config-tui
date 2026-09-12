@@ -7,7 +7,7 @@ import (
 )
 
 func (m Model) previewContent() string {
-	if m.graph != nil {
+	if m.graph != nil && m.readOnly {
 		return m.graphPreviewContent()
 	}
 

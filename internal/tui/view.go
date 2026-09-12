@@ -71,7 +71,7 @@ func (m Model) renderOptions() string {
 			marker = selectedStyle.Render("▸ ")
 		}
 		state := m.optionStatus(option)
-		rows = append(rows, marker+fmt.Sprintf("%-20s %s", option.Key, mutedStyle.Render(state)))
+		rows = append(rows, marker+fmt.Sprintf("%-24s %s", friendlyOptionName(option.Key), mutedStyle.Render(state)))
 	}
 	if end < len(visible) {
 		rows = append(rows, mutedStyle.Render("↓ more"))
@@ -87,12 +87,13 @@ func (m Model) renderDetails() string {
 
 	rows := []string{
 		accentStyle.Render(option.Category),
-		selectedStyle.Render(option.Key),
+		selectedStyle.Render(friendlyOptionName(option.Key)),
+		mutedStyle.Render(option.Key),
 		"",
 		option.Description,
 		"",
 		"Config value: " + m.optionStatus(option),
-		mutedStyle.Render("Editor: " + string(option.Kind)),
+		mutedStyle.Render("Editor: " + m.editorLabel(option)),
 	}
 	if option.Default != "" {
 		rows = append(rows, mutedStyle.Render("Ghostty default: "+option.Default))
@@ -113,7 +114,7 @@ func (m Model) renderDetails() string {
 		}
 	}
 	if m.readOnly {
-		rows = append(rows, mutedStyle.Render("Read-only full catalog; typed editors arrive in a later phase."))
+		rows = append(rows, mutedStyle.Render("Read-only full catalog; select a single source file before editing."))
 	} else if !option.Editable() {
 		rows = append(rows, mutedStyle.Render("Read-only in MVP; repeatable values need a dedicated editor."))
 	}
@@ -137,13 +138,20 @@ func (m Model) renderDetails() string {
 
 func (m Model) renderEdit() string {
 	option, _ := m.selectedOption()
+	if m.choiceMode != choiceNone {
+		return m.renderChoiceEdit(option)
+	}
 	rows := []string{
 		accentStyle.Render("Edit value"),
-		selectedStyle.Render(option.Key),
+		selectedStyle.Render(friendlyOptionName(option.Key)),
+		mutedStyle.Render(option.Key),
 		mutedStyle.Render(option.Description),
 		mutedStyle.Render("Expected: " + valueHint(option)),
 		"",
 		m.input.View(),
+	}
+	if m.numberMode {
+		rows = append(rows, mutedStyle.Render("←/→ adjust by "+numberStepLabel(option)+" · ctrl+r raw numeric input"))
 	}
 	if m.editError != nil {
 		rows = append(rows, "", errorStyle.Render(m.editError.Error()))
@@ -154,6 +162,62 @@ func (m Model) renderEdit() string {
 	}
 	rows = append(rows, "", mutedStyle.Render(shortcut))
 	return panelStyle.Render(strings.Join(rows, "\n"))
+}
+
+func (m Model) renderChoiceEdit(option schema.Option) string {
+	title := "Choose " + friendlyOptionName(option.Key)
+	rows := []string{
+		accentStyle.Render(title),
+		mutedStyle.Render(option.Key),
+		mutedStyle.Render(option.Description),
+		"",
+		"Current: " + m.input.Value(),
+	}
+	if m.choiceMode == choiceColor {
+		rows[len(rows)-1] += "  " + colorSwatch(m.input.Value())
+	}
+	rows = append(rows, "", m.choiceQuery.View(), "")
+	if len(m.choiceMatch) == 0 {
+		rows = append(rows, mutedStyle.Render("No matching values"))
+	} else {
+		limit := m.choiceRowLimit()
+		start := maxInt(0, m.choiceIndex-limit/2)
+		if start+limit > len(m.choiceMatch) {
+			start = maxInt(0, len(m.choiceMatch)-limit)
+		}
+		end := minInt(len(m.choiceMatch), start+limit)
+		if start > 0 {
+			rows = append(rows, mutedStyle.Render("↑ more"))
+		}
+		for position := start; position < end; position++ {
+			index := m.choiceMatch[position]
+			marker := "  "
+			if position == m.choiceIndex {
+				marker = selectedStyle.Render("▸ ")
+			}
+			name, value := m.choiceAt(index)
+			label := name
+			if m.choiceMode == choiceColor {
+				label = fmt.Sprintf("%-24s %s %s", name, value, colorSwatch(value))
+			}
+			rows = append(rows, marker+label)
+		}
+		if end < len(m.choiceMatch) {
+			rows = append(rows, mutedStyle.Render("↓ more"))
+		}
+	}
+	return panelStyle.Render(strings.Join(rows, "\n"))
+}
+
+func colorSwatch(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) == 6 {
+		value = "#" + value
+	}
+	if len(value) != 7 || value[0] != '#' {
+		return mutedStyle.Render("[no swatch]")
+	}
+	return lipgloss.NewStyle().Background(lipgloss.Color(value)).Render("  ")
 }
 
 func (m Model) renderPreview() string {
@@ -175,6 +239,16 @@ func (m Model) footer() string {
 	}
 	switch m.mode {
 	case ModeEdit:
+		if m.choiceMode != choiceNone {
+			return mutedStyle.Render("↑/↓ choose · type to filter · enter select · ctrl+r raw · esc cancel")
+		}
+		if m.numberMode {
+			option, ok := m.selectedOption()
+			if ok {
+				return mutedStyle.Render("←/→ adjust by " + numberStepLabel(option) + " · ctrl+r raw input · enter stage · esc cancel")
+			}
+			return mutedStyle.Render("←/→ adjust · ctrl+r raw input · enter stage · esc cancel")
+		}
 		option, ok := m.selectedOption()
 		if ok && (len(option.Values) > 0 || option.Kind == schema.KindBoolean) {
 			return mutedStyle.Render("←/→ choose · enter stage · esc cancel")
@@ -203,7 +277,14 @@ func (m Model) optionRowLimit() int {
 	if m.height <= 0 {
 		return 12
 	}
-	return maxInt(5, m.height-12)
+	return maxInt(5, m.height-14)
+}
+
+func (m Model) choiceRowLimit() int {
+	if m.height <= 0 {
+		return 6
+	}
+	return maxInt(3, minInt(8, m.height-21))
 }
 
 func minInt(left, right int) int {

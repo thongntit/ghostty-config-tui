@@ -53,6 +53,7 @@ type Option struct {
 	Values       []string  `json:"values,omitempty"`
 	Min          *float64  `json:"min,omitempty"`
 	Max          *float64  `json:"max,omitempty"`
+	Step         *float64  `json:"step,omitempty"`
 }
 
 // Catalog is the on-disk schema shape used by schema/options.json.
@@ -159,7 +160,7 @@ func validColor(value string) bool {
 		return true
 	}
 	for _, character := range value {
-		if unicode.IsLetter(character) || unicode.IsDigit(character) || character == '-' || character == '_' {
+		if unicode.IsLetter(character) || unicode.IsDigit(character) || unicode.IsSpace(character) || character == '-' || character == '_' {
 			continue
 		}
 		return false
@@ -216,6 +217,8 @@ func (c Catalog) WithBootstrapEditors() Catalog {
 		case "font-size":
 			option.Kind = KindNumber
 			option.Edit = EditScalar
+			step := 0.5
+			option.Step = &step
 		case "background", "foreground":
 			option.Kind = KindColor
 			option.Edit = EditScalar

@@ -23,3 +23,12 @@ func TestEmbeddedCatalogContainsFullGhosttySurface(t *testing.T) {
 		}
 	}
 }
+
+func TestWithBootstrapEditorsDeclaresFontSizeStep(t *testing.T) {
+	catalog := Catalog{Options: []Option{{Key: "font-size", Kind: KindNumber, Edit: EditReadOnlyRepeatable}}}
+	updated := catalog.WithBootstrapEditors()
+	option := updated.Options[0]
+	if option.Edit != EditScalar || option.Step == nil || *option.Step != 0.5 {
+		t.Fatalf("font-size editor metadata = %+v", option)
+	}
+}

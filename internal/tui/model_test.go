@@ -123,6 +123,116 @@ func TestBooleanEditorCyclesAndStagesTypedValue(t *testing.T) {
 	}
 }
 
+func TestFriendlyThemeChooserStagesSelectionWithoutRawSyntax(t *testing.T) {
+	original := configdoc.Parse([]byte("theme = old\n"))
+	options := []schema.Option{{
+		Key:         "theme",
+		Category:    "Appearance",
+		Kind:        schema.KindString,
+		Edit:        schema.EditScalar,
+		Description: "A theme to use.",
+	}}
+	model := NewModel(options, "fixture.ghostty", original)
+	model.SetThemeChoices([]string{"Rose Pine", "Tokyo Night"})
+
+	model, _ = model.Update(printable("e"))
+	if model.choiceMode != choiceTheme {
+		t.Fatalf("expected theme chooser, got %v", model.choiceMode)
+	}
+	model, _ = model.Update(printable("tokyo"))
+	model, _ = model.Update(special(tea.KeyEnter))
+	if model.Mode() != ModeBrowse {
+		t.Fatalf("theme chooser did not return to browse: %v", model.Mode())
+	}
+	if got := string(model.DraftBytes()); got != "theme = Tokyo Night\n" {
+		t.Fatalf("unexpected chosen theme draft: %q", got)
+	}
+	if got := model.optionStatus(options[0]); got != "Tokyo Night" {
+		t.Fatalf("staged theme status = %q, want Tokyo Night", got)
+	}
+}
+
+func TestFriendlyColorChooserStagesSwatchValue(t *testing.T) {
+	original := configdoc.Parse([]byte("background = 282c34\n"))
+	options := []schema.Option{{
+		Key:         "background",
+		Category:    "Appearance",
+		Kind:        schema.KindColor,
+		Edit:        schema.EditScalar,
+		Description: "Background color.",
+	}}
+	model := NewModel(options, "fixture.ghostty", original)
+	model.SetColorChoices([]ColorChoice{{Name: "Ocean", Value: "#123456"}})
+
+	model, _ = model.Update(printable("e"))
+	if model.choiceMode != choiceColor {
+		t.Fatalf("expected color chooser, got %v", model.choiceMode)
+	}
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	if lines := len(strings.Split(model.render(), "\n")); lines > 24 {
+		t.Fatalf("color chooser rendered %d lines on an 80x24 terminal", lines)
+	}
+	model, _ = model.Update(special(tea.KeyDown))
+	model, _ = model.Update(special(tea.KeyEnter))
+	if got := string(model.DraftBytes()); got != "background = #123456\n" {
+		t.Fatalf("unexpected chosen color draft: %q", got)
+	}
+}
+
+func TestFontSizeStepperStagesHalfPoint(t *testing.T) {
+	original := configdoc.Parse([]byte("font-size = 13\n"))
+	step := 0.5
+	options := []schema.Option{{
+		Key:         "font-size",
+		Category:    "Appearance",
+		Kind:        schema.KindNumber,
+		Edit:        schema.EditScalar,
+		Step:        &step,
+		Description: "Font size in points.",
+	}}
+	model := NewModel(options, "fixture.ghostty", original)
+
+	model, _ = model.Update(printable("e"))
+	model, _ = model.Update(special(tea.KeyRight))
+	model, _ = model.Update(special(tea.KeyEnter))
+	if got := string(model.DraftBytes()); got != "font-size = 13.5\n" {
+		t.Fatalf("unexpected stepped font size draft: %q", got)
+	}
+	model, _ = model.Update(printable("p"))
+	if !strings.Contains(model.preview.GetContent(), "font-size = 13.5") {
+		t.Fatalf("numeric preview did not include staged value: %q", model.preview.GetContent())
+	}
+}
+
+func TestFriendlyEditorDoesNotDirtyOnNoopSelection(t *testing.T) {
+	original := configdoc.Parse([]byte("background = #123456\n"))
+	options := []schema.Option{{Key: "background", Kind: schema.KindColor, Edit: schema.EditScalar}}
+	model := NewModel(options, "fixture.ghostty", original)
+	model.SetColorChoices([]ColorChoice{{Name: "Ocean", Value: "#123456"}})
+
+	model, _ = model.Update(printable("e"))
+	model, _ = model.Update(special(tea.KeyEnter))
+	if model.HasChanges() {
+		t.Fatal("reselecting the current color created a staged change")
+	}
+	if got := model.Status(); got != "No change for background" {
+		t.Fatalf("noop status = %q", got)
+	}
+}
+
+func TestFriendlyOptionName(t *testing.T) {
+	for key, want := range map[string]string{
+		"font-size":    "Font Size",
+		"gtk-titlebar": "GTK Titlebar",
+		"macos-window": "macOS Window",
+		"window-title": "Window Title",
+	} {
+		if got := friendlyOptionName(key); got != want {
+			t.Errorf("friendlyOptionName(%q) = %q, want %q", key, got, want)
+		}
+	}
+}
+
 func TestReadOnlyGraphRejectsReset(t *testing.T) {
 	original := configdoc.Parse([]byte("theme = dark\n"))
 	graph := configgraph.Graph{

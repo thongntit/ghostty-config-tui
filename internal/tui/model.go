@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -23,6 +24,22 @@ const (
 	ModeConfirmQuit
 )
 
+type choiceMode uint8
+
+const (
+	choiceNone choiceMode = iota
+	choiceTheme
+	choiceColor
+)
+
+// ColorChoice is a named Ghostty/X11 color and its canonical RGB value.
+// Providers may populate this from `ghostty +list-colors`; the TUI also has a
+// small built-in fallback palette for machines without Ghostty installed.
+type ColorChoice struct {
+	Name  string
+	Value string
+}
+
 // Model is a fixture-safe config editor. It keeps original and draft
 // documents separate and never writes the selected file.
 type Model struct {
@@ -36,6 +53,14 @@ type Model struct {
 	visible    []int
 	search     textinput.Model
 	searching  bool
+
+	themeChoices []string
+	colorChoices []ColorChoice
+	choiceQuery  textinput.Model
+	choiceMode   choiceMode
+	choiceMatch  []int
+	choiceIndex  int
+	numberMode   bool
 
 	original *configdoc.Document
 	draft    *configdoc.Document
@@ -59,22 +84,28 @@ func NewModel(options []schema.Option, configPath string, original configdoc.Doc
 	search := textinput.New()
 	search.Prompt = "/ "
 	search.CharLimit = 256
+	choiceQuery := textinput.New()
+	choiceQuery.Prompt = "filter > "
+	choiceQuery.CharLimit = 256
 	visible := make([]int, len(options))
 	for index := range options {
 		visible[index] = index
 	}
 	return Model{
-		options:    append([]schema.Option(nil), options...),
-		configPath: configPath,
-		visible:    visible,
-		original:   originalCopy,
-		draft:      originalCopy.Clone(),
-		desired:    make(map[string]string),
-		changes:    make(map[string]configdoc.Change),
-		mode:       ModeBrowse,
-		input:      input,
-		preview:    preview,
-		search:     search,
+		options:      append([]schema.Option(nil), options...),
+		configPath:   configPath,
+		visible:      visible,
+		original:     originalCopy,
+		draft:        originalCopy.Clone(),
+		desired:      make(map[string]string),
+		changes:      make(map[string]configdoc.Change),
+		mode:         ModeBrowse,
+		input:        input,
+		preview:      preview,
+		search:       search,
+		colorChoices: defaultColorChoices(),
+		choiceQuery:  choiceQuery,
+		choiceIndex:  -1,
 	}
 }
 
@@ -97,6 +128,22 @@ func (m *Model) SetReadOnly(readOnly bool) {
 // SetStatus sets startup or interaction feedback shown in the details panel.
 func (m *Model) SetStatus(status string) {
 	m.status = status
+}
+
+// SetThemeChoices installs an authoritative theme inventory. An empty list
+// intentionally leaves the chooser unavailable so custom/raw theme values can
+// still be entered through the explicit raw fallback.
+func (m *Model) SetThemeChoices(choices []string) {
+	m.themeChoices = append([]string(nil), choices...)
+}
+
+// SetColorChoices installs an authoritative named-color inventory. The
+// built-in palette remains available if a provider cannot be queried.
+func (m *Model) SetColorChoices(choices []ColorChoice) {
+	if len(choices) == 0 {
+		return
+	}
+	m.colorChoices = append([]ColorChoice(nil), choices...)
 }
 
 func (m Model) Init() tea.Cmd {
@@ -129,6 +176,7 @@ func (m *Model) resize() {
 	if m.width > 0 {
 		m.input.SetWidth(maxInt(24, m.width-12))
 		m.search.SetWidth(maxInt(24, m.width-12))
+		m.choiceQuery.SetWidth(maxInt(24, m.width-12))
 		m.preview.SetWidth(maxInt(40, m.width-6))
 	}
 	if m.height > 0 {
@@ -221,11 +269,10 @@ func containsFold(value, query string) bool {
 func (m Model) updateEdit(msg tea.Msg) (Model, tea.Cmd) {
 	keyMsg, keyPressed := msg.(tea.KeyPressMsg)
 	if keyPressed && key.Matches(keyMsg, defaultKeyMap.Escape) {
-		m.input.Blur()
-		m.editError = nil
-		m.mode = ModeBrowse
-		m.status = "Edit cancelled"
-		return m, nil
+		return m, m.cancelEdit()
+	}
+	if m.choiceMode != choiceNone {
+		return m.updateChoiceEdit(msg)
 	}
 	if keyPressed && key.Matches(keyMsg, defaultKeyMap.Enter) {
 		return m, m.commitEdit()
@@ -233,8 +280,21 @@ func (m Model) updateEdit(msg tea.Msg) (Model, tea.Cmd) {
 	if keyPressed && key.Matches(keyMsg, defaultKeyMap.Quit) && keyMsg.String() == "ctrl+c" {
 		return m, m.requestQuit()
 	}
+	if keyPressed && keyMsg.String() == "ctrl+r" && m.numberMode {
+		m.numberMode = false
+		m.status = "Raw numeric input enabled"
+		return m, m.input.Focus()
+	}
 
 	if keyPressed {
+		if _, ok := m.selectedOption(); ok && m.numberMode && (keyMsg.String() == "left" || keyMsg.String() == "right") {
+			delta := -1
+			if keyMsg.String() == "right" {
+				delta = 1
+			}
+			m.adjustNumber(delta)
+			return m, nil
+		}
 		if option, ok := m.selectedOption(); ok && (len(option.Values) > 0 || option.Kind == schema.KindBoolean) {
 			switch {
 			case key.Matches(keyMsg, defaultKeyMap.Left):
@@ -340,7 +400,17 @@ func (m *Model) beginEdit() tea.Cmd {
 	m.input.CursorEnd()
 	m.resize()
 	m.editError = nil
+	m.numberMode = option.Key == "font-size" && option.Kind == schema.KindNumber
+	m.choiceMode = choiceNone
+	m.choiceMatch = nil
+	m.choiceIndex = -1
 	m.mode = ModeEdit
+	if option.Key == "theme" && len(m.themeChoices) > 0 {
+		return m.beginChoiceEdit(choiceTheme, value)
+	}
+	if (option.Key == "background" || option.Key == "foreground") && len(m.colorChoices) > 0 {
+		return m.beginChoiceEdit(choiceColor, value)
+	}
 	return m.input.Focus()
 }
 
@@ -361,15 +431,198 @@ func (m *Model) commitEdit() tea.Cmd {
 		return nil
 	}
 	m.input.Blur()
+	m.clearChoiceEdit()
 	m.mode = ModeBrowse
 	m.editError = nil
-	m.status = "Staged " + option.Key + " (dry run)"
+	if _, staged := m.desired[option.Key]; staged {
+		m.status = "Staged " + option.Key + " (dry run)"
+	} else {
+		m.status = "No change for " + option.Key
+	}
 	return nil
+}
+
+func (m *Model) cancelEdit() tea.Cmd {
+	m.input.Blur()
+	m.choiceQuery.Blur()
+	m.clearChoiceEdit()
+	m.numberMode = false
+	m.editError = nil
+	m.mode = ModeBrowse
+	m.status = "Edit cancelled"
+	return nil
+}
+
+func (m *Model) clearChoiceEdit() {
+	m.choiceMode = choiceNone
+	m.choiceMatch = nil
+	m.choiceIndex = -1
+}
+
+func (m *Model) beginChoiceEdit(kind choiceMode, current string) tea.Cmd {
+	m.choiceMode = kind
+	m.choiceQuery.SetValue("")
+	m.choiceQuery.CursorStart()
+	m.choiceIndex = -1
+	m.applyChoiceFilter(current)
+	m.input.Blur()
+	return m.choiceQuery.Focus()
+}
+
+func (m Model) updateChoiceEdit(msg tea.Msg) (Model, tea.Cmd) {
+	keyMsg, ok := msg.(tea.KeyPressMsg)
+	if !ok {
+		return m, nil
+	}
+	switch keyMsg.String() {
+	case "ctrl+c":
+		return m, m.requestQuit()
+	case "enter":
+		if m.choiceIndex < 0 || m.choiceIndex >= len(m.choiceMatch) {
+			m.status = "Choose a value or press ctrl+r for raw input"
+			return m, nil
+		}
+		choice := m.choiceMatch[m.choiceIndex]
+		if !m.choiceValueMatches(choice, m.input.Value()) {
+			m.input.SetValue(m.choiceValue(choice))
+		}
+		m.choiceQuery.Blur()
+		m.clearChoiceEdit()
+		return m, m.commitEdit()
+	case "up":
+		m.moveChoice(-1)
+		return m, nil
+	case "down":
+		m.moveChoice(1)
+		return m, nil
+	case "left":
+		m.moveChoice(-1)
+		return m, nil
+	case "right":
+		m.moveChoice(1)
+		return m, nil
+	case "ctrl+r":
+		m.choiceQuery.Blur()
+		m.clearChoiceEdit()
+		m.status = "Raw value input enabled"
+		return m, m.input.Focus()
+	}
+
+	var cmd tea.Cmd
+	current := m.input.Value()
+	previous := m.choiceSelectionValue()
+	m.choiceQuery, cmd = m.choiceQuery.Update(msg)
+	m.applyChoiceFilter(current)
+	if previous != "" && m.choiceIndex >= 0 {
+		for position, index := range m.choiceMatch {
+			if m.choiceValue(index) == previous {
+				m.choiceIndex = position
+				break
+			}
+		}
+	}
+	return m, cmd
+}
+
+func (m *Model) applyChoiceFilter(current string) {
+	query := strings.TrimSpace(m.choiceQuery.Value())
+	previous := m.choiceSelectionValue()
+	m.choiceMatch = m.choiceMatch[:0]
+	for index := range m.choiceCount() {
+		name, value := m.choiceAt(index)
+		if query == "" || containsFold(name, query) || containsFold(value, query) {
+			m.choiceMatch = append(m.choiceMatch, index)
+		}
+	}
+	m.choiceIndex = -1
+	for position, index := range m.choiceMatch {
+		if previous != "" && m.choiceValue(index) == previous || current != "" && m.choiceValueMatches(index, current) {
+			m.choiceIndex = position
+			break
+		}
+	}
+	if m.choiceIndex < 0 && query != "" && len(m.choiceMatch) > 0 {
+		m.choiceIndex = 0
+	}
+}
+
+func (m *Model) moveChoice(delta int) {
+	if len(m.choiceMatch) == 0 {
+		return
+	}
+	if m.choiceIndex < 0 {
+		m.choiceIndex = 0
+	} else {
+		m.choiceIndex = (m.choiceIndex + delta + len(m.choiceMatch)) % len(m.choiceMatch)
+	}
+	m.input.SetValue(m.choiceValue(m.choiceMatch[m.choiceIndex]))
+	m.input.Err = nil
+	m.editError = nil
+}
+
+func (m Model) choiceSelectionValue() string {
+	if m.choiceIndex < 0 || m.choiceIndex >= len(m.choiceMatch) {
+		return ""
+	}
+	return m.choiceValue(m.choiceMatch[m.choiceIndex])
+}
+
+func (m Model) choiceCount() int {
+	if m.choiceMode == choiceTheme {
+		return len(m.themeChoices)
+	}
+	return len(m.colorChoices)
+}
+
+func (m Model) choiceAt(index int) (name, value string) {
+	if m.choiceMode == choiceTheme {
+		return m.themeChoices[index], m.themeChoices[index]
+	}
+	choice := m.colorChoices[index]
+	return choice.Name, choice.Value
+}
+
+func (m Model) choiceValue(index int) string {
+	_, value := m.choiceAt(index)
+	return value
+}
+
+func (m Model) choiceValueMatches(index int, current string) bool {
+	value := m.choiceValue(index)
+	if m.choiceMode != choiceColor {
+		return value == current
+	}
+	return strings.EqualFold(strings.TrimPrefix(strings.TrimSpace(value), "#"), strings.TrimPrefix(strings.TrimSpace(current), "#"))
+}
+
+func (m *Model) adjustNumber(delta int) {
+	option, ok := m.selectedOption()
+	if !ok {
+		return
+	}
+	value := strings.TrimSpace(m.input.Value())
+	if value == "" {
+		value = strings.TrimSpace(option.Default)
+	}
+	number, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		m.editError = fmt.Errorf("type a number or press ctrl+r for raw input")
+		m.input.Err = m.editError
+		return
+	}
+	number += float64(delta) * numberStep(option)
+	m.input.SetValue(strconv.FormatFloat(number, 'f', -1, 64))
+	m.input.Err = nil
+	m.editError = nil
 }
 
 func (m *Model) stageValue(key, value string) error {
 	if strings.ContainsAny(value, "\r\n\x00") {
 		return configdoc.ErrUnsafeValue
+	}
+	if assignments := m.original.Assignments(key); len(assignments) == 1 && assignments[0].Value == value {
+		delete(m.desired, key)
+		return m.rebuildDraft()
 	}
 	m.desired[key] = value
 	return m.rebuildDraft()

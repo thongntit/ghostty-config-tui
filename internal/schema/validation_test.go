@@ -33,12 +33,12 @@ func TestOptionValidateNumberHonorsFiniteRange(t *testing.T) {
 
 func TestOptionValidateColorAcceptsGhosttyForms(t *testing.T) {
 	option := Option{Key: "background", Kind: KindColor}
-	for _, value := range []string{"282c34", "#282c34", "background", "cell-foreground"} {
+	for _, value := range []string{"282c34", "#282c34", "alice blue", "background", "cell-foreground"} {
 		if err := option.Validate(value); err != nil {
 			t.Errorf("color %q rejected: %v", value, err)
 		}
 	}
-	for _, value := range []string{"#12", "#fff", "#gggggg", "rgb(1, 2, 3)", "light gray"} {
+	for _, value := range []string{"#12", "#fff", "#gggggg", "rgb(1, 2, 3)"} {
 		if err := option.Validate(value); err == nil {
 			t.Errorf("invalid color %q accepted", value)
 		}

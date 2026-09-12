@@ -56,12 +56,18 @@ staged. Repeatable values such as `keybind` are visible but read-only for now.
 
 The full discovered catalog supports read-only browsing/search and
 effective-value preview. A single discovered or explicit root with no
-`config-file` includes also exposes the initial safe scalar editors (`theme`,
-`font-size`, `background`, and `foreground`); boolean controls use left/right
-toggle and typed values are checked before staging. Multiple roots, includes,
-repeatable values, and special grammars remain read-only until their source
-target can be selected safely. All modes keep original and draft documents
-separate and do not invoke Ghostty or write any file.
+`config-file` includes also exposes friendly dry-run editors for the initial
+safe scalar options: `font-size` uses a half-point stepper, `background` and
+`foreground` use a searchable color chooser with swatches, and `theme` uses
+Ghostty's installed theme inventory when available. `ctrl+r` keeps an
+explicit raw-value escape hatch; unknown existing values are preserved.
+Multiple roots, includes, repeatable values, and special grammars remain
+read-only until their source target can be selected safely. All modes keep
+original and draft documents separate and do not invoke Ghostty or write any
+file.
 
 Architecture and implementation decisions are recorded in
 [`docs/tech-stack.md`](docs/tech-stack.md).
+
+The friendly-control roadmap is in
+[`docs/plan-friendly-controls.md`](docs/plan-friendly-controls.md).

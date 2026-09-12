@@ -5,7 +5,8 @@ Date: 2026-09-12
 
 Current milestone: the catalog + config graph + read-only TUI slice is
 implemented, with the first typed scalar validation/editors available for
-single-file dry runs; graph-aware editing, authoritative validation, and
+single-file dry runs. The first friendly controls now cover the initial four
+safe scalar options; graph-aware editing, authoritative validation, and
 persistence remain follow-up phases.
 
 ## 1. Goal and scope
