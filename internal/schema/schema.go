@@ -18,7 +18,11 @@ const (
 	KindColor      ValueKind = "color"
 	KindBoolean    ValueKind = "boolean"
 	KindEnum       ValueKind = "enum"
+	KindPath       ValueKind = "path"
+	KindDuration   ValueKind = "duration"
 	KindRepeatable ValueKind = "repeatable"
+	KindKeybind    ValueKind = "keybind"
+	KindCommand    ValueKind = "command"
 )
 
 // EditMode controls whether the MVP may stage a value for an option.
@@ -29,24 +33,32 @@ const (
 	EditReadOnlyRepeatable EditMode = "read-only"
 )
 
-// Option is the deliberately small metadata contract consumed by the first
-// TUI screen. More constraints and codecs will be added without changing the
-// config document model.
+// Option is the metadata contract consumed by the TUI. Raw values remain
+// authoritative in configdoc; these fields describe how a value may be shown
+// or edited when a codec is available.
 type Option struct {
-	Key         string    `json:"key"`
-	Category    string    `json:"category"`
-	Kind        ValueKind `json:"kind"`
-	Description string    `json:"description"`
-	Edit        EditMode  `json:"edit"`
-	Values      []string  `json:"values,omitempty"`
-	Min         *float64  `json:"min,omitempty"`
-	Max         *float64  `json:"max,omitempty"`
+	Key          string    `json:"key"`
+	Category     string    `json:"category"`
+	Kind         ValueKind `json:"kind"`
+	Description  string    `json:"description"`
+	Edit         EditMode  `json:"edit"`
+	Default      string    `json:"default,omitempty"`
+	Introduced   string    `json:"introduced,omitempty"`
+	Reload       string    `json:"reload,omitempty"`
+	Context      []string  `json:"context,omitempty"`
+	Availability []string  `json:"availability,omitempty"`
+	Docs         string    `json:"docs,omitempty"`
+	Values       []string  `json:"values,omitempty"`
+	Min          *float64  `json:"min,omitempty"`
+	Max          *float64  `json:"max,omitempty"`
 }
 
 // Catalog is the on-disk schema shape used by schema/options.json.
 type Catalog struct {
 	SchemaVersion  int      `json:"schema_version"`
 	GhosttyVersion string   `json:"ghostty_version"`
+	Source         string   `json:"source,omitempty"`
+	SourceRevision string   `json:"source_revision,omitempty"`
 	Options        []Option `json:"options"`
 }
 
@@ -58,6 +70,16 @@ func Load(r io.Reader) (Catalog, error) {
 	}
 	if catalog.SchemaVersion < 1 {
 		return Catalog{}, fmt.Errorf("schema_version must be positive")
+	}
+	seen := make(map[string]struct{}, len(catalog.Options))
+	for index, option := range catalog.Options {
+		if strings.TrimSpace(option.Key) == "" {
+			return Catalog{}, fmt.Errorf("option %d has an empty key", index)
+		}
+		if _, exists := seen[option.Key]; exists {
+			return Catalog{}, fmt.Errorf("duplicate option key %q", option.Key)
+		}
+		seen[option.Key] = struct{}{}
 	}
 	return catalog, nil
 }
@@ -97,9 +119,32 @@ func (o Option) Validate(value string) error {
 	return nil
 }
 
-// Editable reports whether the option can be changed in this MVP.
+// Editable reports whether the option can be changed by the current editor.
 func (o Option) Editable() bool {
 	return o.Edit != EditReadOnlyRepeatable && o.Kind != KindRepeatable
+}
+
+// WithBootstrapEditors returns a catalog with only the original safe scalar
+// editors enabled. It is used for the explicit single-file compatibility
+// mode while the full graph editor is still read-only.
+func (c Catalog) WithBootstrapEditors() Catalog {
+	clone := c
+	clone.Options = append([]Option(nil), c.Options...)
+	for index := range clone.Options {
+		option := &clone.Options[index]
+		switch option.Key {
+		case "theme":
+			option.Kind = KindString
+			option.Edit = EditScalar
+		case "font-size":
+			option.Kind = KindNumber
+			option.Edit = EditScalar
+		case "background", "foreground":
+			option.Kind = KindColor
+			option.Edit = EditScalar
+		}
+	}
+	return clone
 }
 
 // BootstrapOptions provides a small, known set of options for the shell UI.

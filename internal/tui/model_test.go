@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/thongntit/ghostty-config-tui/internal/configdoc"
+	"github.com/thongntit/ghostty-config-tui/internal/configgraph"
 	"github.com/thongntit/ghostty-config-tui/internal/schema"
 )
 
@@ -94,6 +95,40 @@ func TestInvalidValueStaysInEditAndDirtyQuitConfirms(t *testing.T) {
 	model, cmd = model.Update(printable("y"))
 	if cmd == nil {
 		t.Fatal("confirmed quit did not return a quit command")
+	}
+}
+
+func TestGraphModelSearchesCatalogAndShowsEffectiveSource(t *testing.T) {
+	original := configdoc.Parse([]byte("theme = dark\nfont-size = 14\n"))
+	graph := configgraph.Graph{
+		Roots: []string{"config.ghostty"},
+		Files: []configgraph.File{{Path: "config.ghostty", Document: original}},
+		Assignments: []configgraph.Assignment{
+			{Key: "theme", Value: "dark", Path: "config.ghostty", Line: 1},
+			{Key: "font-size", Value: "14", Path: "config.ghostty", Line: 2},
+		},
+	}
+	options := []schema.Option{
+		{Key: "theme", Category: "Appearance", Kind: schema.KindString, Edit: schema.EditReadOnlyRepeatable, Description: "Theme."},
+		{Key: "font-size", Category: "Appearance", Kind: schema.KindNumber, Edit: schema.EditReadOnlyRepeatable, Description: "Font size."},
+	}
+	model := NewGraphModel(options, "config.ghostty", original, graph)
+
+	model, _ = model.Update(printable("/"))
+	model.search.SetValue("font")
+	model, _ = model.Update(special(tea.KeyEnter))
+	if got := model.SelectedKey(); got != "font-size" {
+		t.Fatalf("search selected %q, want font-size", got)
+	}
+	if got := model.optionStatus(options[1]); got != "14" {
+		t.Fatalf("effective option status = %q, want 14", got)
+	}
+	if got := model.optionSource(options[1]); got != "Effective source: config.ghostty:2" {
+		t.Fatalf("effective source = %q", got)
+	}
+	model, _ = model.Update(printable("p"))
+	if !strings.Contains(model.preview.GetContent(), "Effective Ghostty configuration graph") || !strings.Contains(model.preview.GetContent(), "config.ghostty:2") {
+		t.Fatal("graph preview did not include effective source information")
 	}
 }
 

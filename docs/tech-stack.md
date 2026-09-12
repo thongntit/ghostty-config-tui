@@ -21,8 +21,11 @@ are intentionally deferred until the MVP proves they are needed.
 - `internal/schema` owns typed option metadata and value codecs. The embedded
   schema is versioned and is not treated as a replacement for Ghostty's own
   validator.
-- `internal/ghostty` owns binary discovery, version detection, dynamic catalogs,
-  and optional authoritative validation through the installed Ghostty binary.
+- `internal/ghostty` owns binary discovery, version detection, default-root
+  discovery, dynamic catalog generation, and optional authoritative validation
+  through the installed Ghostty binary.
+- `internal/configgraph` owns recursive `config-file` loading, root/include
+  precedence, cycle and missing-file diagnostics, and assignment provenance.
 - `internal/storage` owns conflict detection, backups, permissions, symlink-safe
   writes, and atomic replacement.
 - `internal/tui` owns interaction and rendering; it talks to the other packages
@@ -32,8 +35,8 @@ are intentionally deferred until the MVP proves they are needed.
 
 Ghostty configuration is not a simple key/value map. A key can repeat, values
 can be empty, `#` is only a comment marker on its own line, and `config-file`
-entries are resolved after the containing file. The first editor should edit an
-explicitly selected file and show included files and precedence rather than
+entries are resolved after the containing file. The graph editor loads all
+default roots and includes while retaining each source document, rather than
 silently flattening everything.
 
 Saving is a guarded operation: render a candidate, validate it, detect

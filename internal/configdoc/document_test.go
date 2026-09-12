@@ -17,6 +17,18 @@ func TestRoundTripPreservesSource(t *testing.T) {
 	}
 }
 
+func TestRoundTripHandlesWhitespaceOnlyValues(t *testing.T) {
+	input := []byte("font-family =    \nbackground =\t\r\n")
+	document := Parse(input)
+
+	if got := document.Render(); !bytes.Equal(got, input) {
+		t.Fatalf("whitespace-only values changed source:\n got %q\nwant %q", got, input)
+	}
+	if got, ok := document.Lookup("font-family"); !ok || got != "" {
+		t.Fatalf("unexpected whitespace-only value: %q, %v", got, ok)
+	}
+}
+
 func TestSetPreservesAssignmentShape(t *testing.T) {
 	document := Parse([]byte("theme    =    old-theme  \r\n# keep me\r\n"))
 	document.Set("theme", "new-theme")

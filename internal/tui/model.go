@@ -9,6 +9,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"github.com/thongntit/ghostty-config-tui/internal/configdoc"
+	"github.com/thongntit/ghostty-config-tui/internal/configgraph"
 	"github.com/thongntit/ghostty-config-tui/internal/schema"
 )
 
@@ -30,6 +31,11 @@ type Model struct {
 	width      int
 	height     int
 	configPath string
+	readOnly   bool
+	graph      *configgraph.Graph
+	visible    []int
+	search     textinput.Model
+	searching  bool
 
 	original *configdoc.Document
 	draft    *configdoc.Document
@@ -50,9 +56,17 @@ func NewModel(options []schema.Option, configPath string, original configdoc.Doc
 	input := textinput.New()
 	input.CharLimit = 1024
 	preview := viewport.New(viewport.WithHeight(12), viewport.WithWidth(72))
+	search := textinput.New()
+	search.Prompt = "/ "
+	search.CharLimit = 256
+	visible := make([]int, len(options))
+	for index := range options {
+		visible[index] = index
+	}
 	return Model{
 		options:    append([]schema.Option(nil), options...),
 		configPath: configPath,
+		visible:    visible,
 		original:   originalCopy,
 		draft:      originalCopy.Clone(),
 		desired:    make(map[string]string),
@@ -60,7 +74,24 @@ func NewModel(options []schema.Option, configPath string, original configdoc.Doc
 		mode:       ModeBrowse,
 		input:      input,
 		preview:    preview,
+		search:     search,
 	}
+}
+
+// NewGraphModel creates the read-only full-catalog view. The graph is kept
+// separate from the selected source document so the UI can explain effective
+// values without flattening or rewriting files.
+func NewGraphModel(options []schema.Option, configPath string, original configdoc.Document, graph configgraph.Graph) Model {
+	model := NewModel(options, configPath, original)
+	model.graph = &graph
+	model.readOnly = true
+	return model
+}
+
+// SetReadOnly controls whether the current model exposes editing actions.
+// Full graph mode uses this until graph-aware draft targets are implemented.
+func (m *Model) SetReadOnly(readOnly bool) {
+	m.readOnly = readOnly
 }
 
 // SetStatus sets startup or interaction feedback shown in the details panel.
@@ -97,6 +128,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 func (m *Model) resize() {
 	if m.width > 0 {
 		m.input.SetWidth(maxInt(24, m.width-12))
+		m.search.SetWidth(maxInt(24, m.width-12))
 		m.preview.SetWidth(maxInt(40, m.width-6))
 	}
 	if m.height > 0 {
@@ -105,12 +137,20 @@ func (m *Model) resize() {
 }
 
 func (m Model) updateBrowse(msg tea.Msg) (Model, tea.Cmd) {
+	if m.searching {
+		return m.updateSearch(msg)
+	}
 	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return m, nil
 	}
 	if key.Matches(keyMsg, defaultKeyMap.Quit) {
 		return m, m.requestQuit()
+	}
+	if keyMsg.String() == "/" {
+		m.searching = true
+		m.search.CursorEnd()
+		return m, m.search.Focus()
 	}
 
 	switch {
@@ -119,7 +159,7 @@ func (m Model) updateBrowse(msg tea.Msg) (Model, tea.Cmd) {
 			m.selected--
 		}
 	case key.Matches(keyMsg, defaultKeyMap.Down):
-		if m.selected < len(m.options)-1 {
+		if m.selected < len(m.visibleOptionIndexes())-1 {
 			m.selected++
 		}
 	case key.Matches(keyMsg, defaultKeyMap.Enter), key.Matches(keyMsg, defaultKeyMap.Edit):
@@ -134,6 +174,48 @@ func (m Model) updateBrowse(msg tea.Msg) (Model, tea.Cmd) {
 		m.help = !m.help
 	}
 	return m, nil
+}
+
+func (m Model) updateSearch(msg tea.Msg) (Model, tea.Cmd) {
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+		switch keyMsg.String() {
+		case "esc":
+			m.search.Blur()
+			m.searching = false
+			return m, nil
+		case "enter":
+			m.search.Blur()
+			m.searching = false
+			m.applySearch(m.search.Value())
+			return m, nil
+		}
+	}
+	var cmd tea.Cmd
+	m.search, cmd = m.search.Update(msg)
+	m.applySearch(m.search.Value())
+	return m, cmd
+}
+
+func (m *Model) applySearch(query string) {
+	previousKey := m.SelectedKey()
+	query = strings.TrimSpace(query)
+	m.visible = m.visible[:0]
+	for index, option := range m.options {
+		if query == "" || containsFold(option.Key, query) || containsFold(option.Category, query) || containsFold(option.Description, query) {
+			m.visible = append(m.visible, index)
+		}
+	}
+	m.selected = 0
+	for position, index := range m.visible {
+		if m.options[index].Key == previousKey {
+			m.selected = position
+			break
+		}
+	}
+}
+
+func containsFold(value, query string) bool {
+	return strings.Contains(strings.ToLower(value), strings.ToLower(query))
 }
 
 func (m Model) updateEdit(msg tea.Msg) (Model, tea.Cmd) {
@@ -205,15 +287,39 @@ func (m *Model) requestQuit() tea.Cmd {
 }
 
 func (m Model) selectedOption() (schema.Option, bool) {
-	if m.selected < 0 || m.selected >= len(m.options) {
+	visible := m.visibleOptionIndexes()
+	if m.selected < 0 || m.selected >= len(visible) {
 		return schema.Option{}, false
 	}
-	return m.options[m.selected], true
+	return m.options[visible[m.selected]], true
+}
+
+func (m Model) selectedOptionIndex() (int, bool) {
+	visible := m.visibleOptionIndexes()
+	if m.selected < 0 || m.selected >= len(visible) {
+		return 0, false
+	}
+	return visible[m.selected], true
+}
+
+func (m Model) visibleOptionIndexes() []int {
+	if m.visible != nil {
+		return m.visible
+	}
+	visible := make([]int, len(m.options))
+	for index := range m.options {
+		visible[index] = index
+	}
+	return visible
 }
 
 func (m *Model) beginEdit() tea.Cmd {
 	option, ok := m.selectedOption()
 	if !ok {
+		return nil
+	}
+	if m.readOnly {
+		m.status = "Full catalog view is read-only in this slice"
 		return nil
 	}
 	if !option.Editable() {

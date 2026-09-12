@@ -63,6 +63,9 @@ func parseLine(line []byte) Node {
 	rawValue := content[equals+1:]
 	valueStart := len(rawValue) - len(bytes.TrimLeft(rawValue, " \t"))
 	valueEnd := len(bytes.TrimRight(rawValue, " \t"))
+	if valueStart > valueEnd {
+		valueStart = valueEnd
+	}
 
 	base.Kind = AssignmentNode
 	base.Key = key

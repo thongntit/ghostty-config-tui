@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/thongntit/ghostty-config-tui/internal/configgraph"
+	"github.com/thongntit/ghostty-config-tui/internal/schema"
 )
 
 func TestNewLoadsExplicitFixtureWithoutGhostty(t *testing.T) {
@@ -76,7 +79,7 @@ func TestNewUsesHighestPrecedenceUserConfigAndExplainsMultipleFiles(t *testing.T
 	if !bytes.Equal(model.ui.OriginalBytes(), legacyBytes) {
 		t.Fatalf("selected source was not the highest-precedence config")
 	}
-	wantStatus := "Loaded " + legacy + " (highest-precedence of 2 Ghostty config files; other files are not combined)"
+	wantStatus := "Loaded effective config through " + legacy + " (2 default roots)"
 	if got := model.ui.Status(); got != wantStatus {
 		t.Fatalf("startup status = %q, want %q", got, wantStatus)
 	}
@@ -108,6 +111,20 @@ func TestNewExplicitPathDoesNotFallBackToDiscoveredConfig(t *testing.T) {
 	_, err := New(Options{ConfigPath: explicit})
 	if err == nil || !strings.Contains(err.Error(), explicit) {
 		t.Fatalf("explicit missing path unexpectedly succeeded: %v", err)
+	}
+}
+
+func TestOptionsWithUnknownsAddsEachCustomKeyOnce(t *testing.T) {
+	options := []schema.Option{{Key: "theme"}}
+	graph := configgraph.Graph{Assignments: []configgraph.Assignment{
+		{Key: "theme"},
+		{Key: "custom-option"},
+		{Key: "custom-option"},
+	}}
+
+	got := optionsWithUnknowns(options, graph)
+	if len(got) != 2 || got[1].Key != "custom-option" || got[1].Category != "Custom" {
+		t.Fatalf("options with unknowns = %+v", got)
 	}
 }
 
