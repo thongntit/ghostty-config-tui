@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -16,7 +17,11 @@ func (m Model) View() tea.View {
 }
 
 func (m Model) render() string {
-	header := titleStyle.Render("Ghostty Config TUI") + "\n" + mutedStyle.Render("Guided editor · dry run only")
+	session := "Guided editor · preview before save"
+	if m.saveFunc != nil {
+		session = "Guided editor · saves are confirmed explicitly"
+	}
+	header := titleStyle.Render("Ghostty Config TUI") + "\n" + mutedStyle.Render(session)
 
 	var body string
 	switch m.mode {
@@ -41,7 +46,7 @@ func (m Model) render() string {
 		body,
 		"",
 		accentStyle.Render("Config: ") + config,
-		mutedStyle.Render("No files will be written in this MVP"),
+		mutedStyle.Render(m.fileSummary()),
 		m.footer(),
 	}, "\n")
 }
@@ -108,26 +113,19 @@ func (m Model) renderDetails() string {
 		rows = append(rows, mutedStyle.Render(source))
 	}
 	if m.graph != nil {
-		rows = append(rows, mutedStyle.Render(fmt.Sprintf("Config graph: %d files · %d effective assignments", len(m.graph.Files), len(m.graph.Assignments))))
+		draftGraph := m.draftGraph()
+		rows = append(rows, mutedStyle.Render(fmt.Sprintf("Config graph: %d files · %d effective assignments", len(draftGraph.Files), len(draftGraph.Assignments))))
 		if len(m.graph.Diagnostics) > 0 {
 			rows = append(rows, errorStyle.Render(fmt.Sprintf("Diagnostics: %d (press p for details)", len(m.graph.Diagnostics))))
 		}
 	}
-	if m.readOnly {
-		rows = append(rows, mutedStyle.Render("Read-only full catalog; select a single source file before editing."))
-	} else if !option.Editable() {
-		rows = append(rows, mutedStyle.Render("Read-only in MVP; repeatable values need a dedicated editor."))
-	}
 	if m.graph != nil {
-		if len(m.graph.AssignmentsFor(option.Key)) > 1 {
-			rows = append(rows, mutedStyle.Render("Multiple effective assignments; later source wins."))
+		if len(m.optionAssignments(option.Key)) > 1 {
+			rows = append(rows, mutedStyle.Render("Multiple assignments; editor targets the effective source."))
 		}
 	} else {
-		if len(m.draft.Assignments(option.Key)) > 1 {
-			rows = append(rows, mutedStyle.Render("Duplicate assignments detected; edit is disabled."))
-		}
-		if len(m.draft.Assignments("config-file")) > 0 {
-			rows = append(rows, mutedStyle.Render("Included files are not resolved; this is only the selected file."))
+		if len(m.optionAssignments(option.Key)) > 1 {
+			rows = append(rows, mutedStyle.Render("Multiple assignments; editor targets the last one."))
 		}
 	}
 	if m.status != "" {
@@ -138,6 +136,9 @@ func (m Model) renderDetails() string {
 
 func (m Model) renderEdit() string {
 	option, _ := m.selectedOption()
+	if m.repeatableMode {
+		return m.renderRepeatableEdit(option)
+	}
 	if m.choiceMode != choiceNone {
 		return m.renderChoiceEdit(option)
 	}
@@ -161,6 +162,57 @@ func (m Model) renderEdit() string {
 		shortcut = "←/→ choose · enter stage · esc cancel"
 	}
 	rows = append(rows, "", mutedStyle.Render(shortcut))
+	return panelStyle.Render(strings.Join(rows, "\n"))
+}
+
+func (m Model) renderRepeatableEdit(option schema.Option) string {
+	rows := []string{
+		accentStyle.Render("Edit " + friendlyOptionName(option.Key)),
+		mutedStyle.Render(option.Key),
+		mutedStyle.Render(option.Description),
+		"",
+	}
+	if m.repeatableEditing {
+		rows = append(rows,
+			selectedStyle.Render("Value"),
+			m.input.View(),
+			mutedStyle.Render("Enter a complete one-line Ghostty value."),
+		)
+		if m.editError != nil {
+			rows = append(rows, errorStyle.Render(m.editError.Error()))
+		}
+		rows = append(rows, mutedStyle.Render("enter update · esc back to list"))
+		return panelStyle.Render(strings.Join(rows, "\n"))
+	}
+	rows = append(rows, mutedStyle.Render(fmt.Sprintf("%d value(s)", len(m.repeatableItems))))
+	if len(m.repeatableItems) == 0 {
+		rows = append(rows, mutedStyle.Render("No values. Press a to add one."))
+	} else {
+		limit := m.repeatableRowLimit()
+		start := maxInt(0, m.repeatableIndex-limit/2)
+		if start+limit > len(m.repeatableItems) {
+			start = maxInt(0, len(m.repeatableItems)-limit)
+		}
+		end := minInt(len(m.repeatableItems), start+limit)
+		if start > 0 {
+			rows = append(rows, mutedStyle.Render("↑ more"))
+		}
+		for index := start; index < end; index++ {
+			item := m.repeatableItems[index]
+			marker := "  "
+			if index == m.repeatableIndex {
+				marker = selectedStyle.Render("▸ ")
+			}
+			location := "new"
+			if item.Existing {
+				location = fmt.Sprintf("%s:%d", filepath.Base(item.Path), item.Line)
+			}
+			rows = append(rows, marker+fmt.Sprintf("%-30s %s", item.Value, mutedStyle.Render(location)))
+		}
+		if end < len(m.repeatableItems) {
+			rows = append(rows, mutedStyle.Render("↓ more"))
+		}
+	}
 	return panelStyle.Render(strings.Join(rows, "\n"))
 }
 
@@ -229,16 +281,22 @@ func (m Model) renderPreview() string {
 }
 
 func (m Model) renderConfirmQuit() string {
-	message := "Discard staged changes and quit?\n\n" + selectedStyle.Render("y") + " confirm    " + mutedStyle.Render("n / esc cancel")
+	message := "Save staged changes before quitting?\n\n" + selectedStyle.Render("y") + " save and quit    " + selectedStyle.Render("d") + " discard and quit    " + mutedStyle.Render("esc back")
 	return panelStyle.Render(message)
 }
 
 func (m Model) footer() string {
 	if m.help {
-		return mutedStyle.Render("↑/k ↓/j move · enter/e edit · r reset · u revert · p preview · ? close help · q quit")
+		return mutedStyle.Render("↑/k ↓/j move · enter/e edit · r reset · u revert · p preview · ctrl+s save · ? close help · q quit")
 	}
 	switch m.mode {
 	case ModeEdit:
+		if m.repeatableMode {
+			if m.repeatableEditing {
+				return mutedStyle.Render("enter update · esc back to list")
+			}
+			return mutedStyle.Render("↑/k ↓/j select · a add · e edit · d delete · r clear · enter stage · esc cancel")
+		}
 		if m.choiceMode != choiceNone {
 			return mutedStyle.Render("↑/↓ choose · type to filter · enter select · ctrl+r raw · esc cancel")
 		}
@@ -257,9 +315,9 @@ func (m Model) footer() string {
 	case ModePreview:
 		return mutedStyle.Render("↑/k ↓/j scroll · pgup/pgdn page · esc back · q quit")
 	case ModeConfirmQuit:
-		return mutedStyle.Render("y confirm · n/esc cancel")
+		return mutedStyle.Render("y save and quit · d discard and quit · esc back")
 	default:
-		return mutedStyle.Render("↑/k ↓/j move · / search · enter/e edit · r reset · u revert · p preview · ? help · q quit")
+		return mutedStyle.Render("↑/k ↓/j move · / search · enter/e edit · r reset · u revert · p preview · ctrl+s save · ? help · q quit")
 	}
 }
 
@@ -285,6 +343,23 @@ func (m Model) choiceRowLimit() int {
 		return 6
 	}
 	return maxInt(3, minInt(8, m.height-21))
+}
+
+func (m Model) repeatableRowLimit() int {
+	if m.height <= 0 {
+		return 8
+	}
+	return maxInt(3, minInt(10, m.height-13))
+}
+
+func (m Model) fileSummary() string {
+	if m.saveFunc == nil {
+		return "Preview only; changes stay in memory until this host provides saving"
+	}
+	if m.HasChanges() {
+		return fmt.Sprintf("%d file(s) changed in memory; ctrl+s or y confirms the write", len(m.changedFileSnapshots()))
+	}
+	return "No staged changes"
 }
 
 func minInt(left, right int) int {

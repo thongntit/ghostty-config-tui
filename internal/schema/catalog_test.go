@@ -32,3 +32,20 @@ func TestWithBootstrapEditorsDeclaresFontSizeStep(t *testing.T) {
 		t.Fatalf("font-size editor metadata = %+v", option)
 	}
 }
+
+func TestWithAllEditorsCoversEveryCatalogKind(t *testing.T) {
+	catalog := Catalog{Options: []Option{
+		{Key: "theme", Kind: KindString, Edit: EditReadOnlyRepeatable},
+		{Key: "keybind", Kind: KindKeybind, Edit: EditReadOnlyRepeatable},
+		{Key: "palette", Kind: KindRepeatable, Edit: EditReadOnlyRepeatable},
+	}}
+	updated := catalog.WithAllEditors()
+	for _, option := range updated.Options {
+		if !option.Editable() {
+			t.Fatalf("option %q remains read-only: %+v", option.Key, option)
+		}
+	}
+	if updated.Options[1].Edit != EditRepeatable || updated.Options[2].Edit != EditRepeatable {
+		t.Fatalf("repeatable editor metadata = %+v", updated.Options)
+	}
+}

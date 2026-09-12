@@ -67,6 +67,23 @@ func TestNewDiscoversUserConfig(t *testing.T) {
 	}
 }
 
+func TestNewExposesEveryEmbeddedOptionForEditing(t *testing.T) {
+	path := filepath.Join("..", "..", "testdata", "config", "basic.ghostty")
+	model, err := New(Options{ConfigPath: path})
+	if err != nil {
+		t.Fatalf("new app: %v", err)
+	}
+	catalog, err := schema.EmbeddedCatalog()
+	if err != nil {
+		t.Fatalf("load catalog: %v", err)
+	}
+	for _, option := range catalog.Options {
+		if !model.ui.CanEdit(option.Key) {
+			t.Errorf("catalog option %q is not editable", option.Key)
+		}
+	}
+}
+
 func TestNewUsesHighestPrecedenceUserConfigAndExplainsMultipleFiles(t *testing.T) {
 	home := t.TempDir()
 	xdg := filepath.Join(home, "xdg")
@@ -89,8 +106,11 @@ func TestNewUsesHighestPrecedenceUserConfigAndExplainsMultipleFiles(t *testing.T
 	if got := model.ui.Status(); got != wantStatus {
 		t.Fatalf("startup status = %q, want %q", got, wantStatus)
 	}
-	if !model.ui.ReadOnly() {
-		t.Fatal("multiple discovered roots unexpectedly enabled editing")
+	if model.ui.ReadOnly() {
+		t.Fatal("multiple discovered roots unexpectedly disabled editing")
+	}
+	if !model.ui.CanEdit("theme") {
+		t.Fatal("multiple discovered roots did not expose the theme editor")
 	}
 }
 

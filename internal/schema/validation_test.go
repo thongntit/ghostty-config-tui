@@ -57,7 +57,7 @@ func TestOptionValidatePathAndDuration(t *testing.T) {
 	}
 
 	duration := Option{Key: "click-repeat-interval", Kind: KindDuration}
-	for _, value := range []string{"0", "0.2", "250ms", "1s 200ms", "1h30m"} {
+	for _, value := range []string{"0", "0.2", "250ms", "1s 200ms", "1h30m", "1w", "2d 3h", "1y"} {
 		if err := duration.Validate(value); err != nil {
 			t.Errorf("duration %q rejected: %v", value, err)
 		}

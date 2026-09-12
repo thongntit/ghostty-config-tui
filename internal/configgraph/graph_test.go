@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/thongntit/ghostty-config-tui/internal/configdoc"
 )
 
 func TestLoadAppliesLocalAssignmentsBeforeIncludesAndRootsInOrder(t *testing.T) {
@@ -108,6 +110,36 @@ func TestLoadRejectsInvalidRoot(t *testing.T) {
 	_, err := Load([]string{filepath.Join(t.TempDir(), "missing.ghostty")})
 	if err == nil || !strings.Contains(err.Error(), "config root") {
 		t.Fatalf("unexpected invalid-root result: %v", err)
+	}
+}
+
+func TestWithDocumentsRebuildsCurrentIncludeMetadata(t *testing.T) {
+	root := t.TempDir()
+	parent := filepath.Join(root, "parent.ghostty")
+	child := filepath.Join(root, "child.ghostty")
+	writeGraphConfig(t, parent, "config-file = child.ghostty\n")
+	writeGraphConfig(t, child, "theme = light\n")
+
+	graph, err := Load([]string{parent})
+	if err != nil {
+		t.Fatalf("load graph: %v", err)
+	}
+	draft := graph.Files[0].Document.Clone()
+	if _, err := draft.SetAssignment("config-file", 1, "?missing.ghostty"); err != nil {
+		t.Fatalf("edit include: %v", err)
+	}
+
+	draftGraph := graph.WithDocuments(map[string]configdoc.Document{
+		parent: *draft,
+	})
+	if len(draftGraph.Includes) != 1 || draftGraph.Includes[0].Loaded || !draftGraph.Includes[0].Optional {
+		t.Fatalf("draft includes = %+v", draftGraph.Includes)
+	}
+	if len(draftGraph.Diagnostics) != 1 || draftGraph.Diagnostics[0].Severity != SeverityInfo {
+		t.Fatalf("draft diagnostics = %+v", draftGraph.Diagnostics)
+	}
+	if assignments := draftGraph.AssignmentsFor("theme"); len(assignments) != 0 {
+		t.Fatalf("theme assignments from removed child = %+v", assignments)
 	}
 }
 

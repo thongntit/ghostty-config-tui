@@ -44,7 +44,7 @@ func TestEditPreviewKeepsOriginalUntouched(t *testing.T) {
 	}
 }
 
-func TestResetRevertAndReadOnlyGuards(t *testing.T) {
+func TestResetRevertAndRepeatableEditor(t *testing.T) {
 	original := configdoc.Parse([]byte("theme = old\nfont-size = 14\nkeybind = ctrl+a=first\n"))
 	model := NewModel(schema.BootstrapOptions(), "fixture.ghostty", original)
 
@@ -64,8 +64,12 @@ func TestResetRevertAndReadOnlyGuards(t *testing.T) {
 		t.Fatalf("expected keybind selection, got %q", model.SelectedKey())
 	}
 	model, _ = model.Update(printable("e"))
-	if model.Mode() != ModeBrowse || !strings.Contains(model.Status(), "read-only") {
-		t.Fatalf("repeatable option was editable: mode=%v status=%q", model.Mode(), model.Status())
+	if model.Mode() != ModeEdit {
+		t.Fatalf("repeatable option did not open an editor: mode=%v status=%q", model.Mode(), model.Status())
+	}
+	model, _ = model.Update(special(tea.KeyEscape))
+	if model.Mode() != ModeBrowse {
+		t.Fatalf("repeatable editor did not cancel: mode=%v", model.Mode())
 	}
 }
 
@@ -220,6 +224,38 @@ func TestFriendlyEditorDoesNotDirtyOnNoopSelection(t *testing.T) {
 	}
 }
 
+func TestSuccessfulSavePromotesDraftBaseline(t *testing.T) {
+	original := configdoc.Parse([]byte("theme = old\n"))
+	model := NewModel([]schema.Option{{Key: "theme", Kind: schema.KindString, Edit: schema.EditScalar}}, "fixture.ghostty", original)
+	var calls [][]FileSnapshot
+	model.SetSaveFunc(func(changes []FileSnapshot) error {
+		calls = append(calls, changes)
+		return nil
+	})
+
+	if err := model.stageScalar("theme", "new"); err != nil {
+		t.Fatalf("stage first value: %v", err)
+	}
+	model.saveNow()
+	if model.HasChanges() {
+		t.Fatal("successful save left the first draft dirty")
+	}
+	if len(calls) != 1 || string(calls[0][0].Candidate) != "theme = new\n" {
+		t.Fatalf("first save snapshots = %+v", calls)
+	}
+
+	if err := model.stageScalar("theme", "newer"); err != nil {
+		t.Fatalf("stage second value: %v", err)
+	}
+	model.saveNow()
+	if model.HasChanges() {
+		t.Fatal("successful second save left the draft dirty")
+	}
+	if len(calls) != 2 || string(calls[1][0].Original) != "theme = new\n" || string(calls[1][0].Candidate) != "theme = newer\n" {
+		t.Fatalf("second save snapshots = %+v", calls)
+	}
+}
+
 func TestFriendlyOptionName(t *testing.T) {
 	for key, want := range map[string]string{
 		"font-size":    "Font Size",
@@ -233,7 +269,7 @@ func TestFriendlyOptionName(t *testing.T) {
 	}
 }
 
-func TestReadOnlyGraphRejectsReset(t *testing.T) {
+func TestGraphResetStagesAgainstSourceDocument(t *testing.T) {
 	original := configdoc.Parse([]byte("theme = dark\n"))
 	graph := configgraph.Graph{
 		Roots:       []string{"config.ghostty"},
@@ -243,11 +279,11 @@ func TestReadOnlyGraphRejectsReset(t *testing.T) {
 	options := []schema.Option{{Key: "theme", Kind: schema.KindString, Edit: schema.EditScalar}}
 	model := NewGraphModel(options, "config.ghostty", original, graph)
 	model, _ = model.Update(printable("r"))
-	if model.HasChanges() {
-		t.Fatal("read-only graph reset staged a change")
+	if !model.HasChanges() {
+		t.Fatal("graph reset did not stage a change")
 	}
-	if !strings.Contains(model.Status(), "read-only") {
-		t.Fatalf("read-only reset status = %q", model.Status())
+	if got := string(model.DraftBytes()); got != "theme =\n" {
+		t.Fatalf("graph reset draft = %q", got)
 	}
 }
 
@@ -282,6 +318,93 @@ func TestGraphModelSearchesCatalogAndShowsEffectiveSource(t *testing.T) {
 	model, _ = model.Update(printable("p"))
 	if !strings.Contains(model.preview.GetContent(), "Effective Ghostty configuration graph") || !strings.Contains(model.preview.GetContent(), "config.ghostty:2") {
 		t.Fatal("graph preview did not include effective source information")
+	}
+}
+
+func TestGraphScalarEditTargetsEffectiveSourceFile(t *testing.T) {
+	rootPath := "root.ghostty"
+	childPath := "child.ghostty"
+	root := configdoc.Parse([]byte("theme = dark\nconfig-file = child.ghostty\n"))
+	child := configdoc.Parse([]byte("theme = light\n"))
+	graph := configgraph.Graph{
+		Roots: []string{rootPath},
+		Files: []configgraph.File{
+			{Path: rootPath, Document: root},
+			{Path: childPath, Document: child},
+		},
+		Assignments: []configgraph.Assignment{
+			{Key: "theme", Value: "dark", Path: rootPath, Line: 1, SourceFile: 0},
+			{Key: "theme", Value: "light", Path: childPath, Line: 1, SourceFile: 1},
+		},
+	}
+	options := []schema.Option{{Key: "theme", Kind: schema.KindString, Edit: schema.EditScalar}}
+	model := NewGraphModel(options, rootPath, root, graph)
+	if err := model.stageScalar("theme", "rose-pine"); err != nil {
+		t.Fatalf("stage graph scalar: %v", err)
+	}
+	if got := string(model.fileDrafts[0].Bytes()); got != string(root.Bytes()) {
+		t.Fatalf("root changed instead of effective source: %q", got)
+	}
+	if got := string(model.fileDrafts[1].Bytes()); got != "theme = rose-pine\n" {
+		t.Fatalf("child draft = %q", got)
+	}
+	if got := model.optionStatus(options[0]); got != "rose-pine (2 assignments)" {
+		t.Fatalf("effective graph status = %q", got)
+	}
+}
+
+func TestRepeatableEditorUpdatesAndAddsAcrossFiles(t *testing.T) {
+	rootPath := "root.ghostty"
+	childPath := "child.ghostty"
+	root := configdoc.Parse([]byte("config-file = child.ghostty\n"))
+	child := configdoc.Parse([]byte("keybind = ctrl+a=one\nkeybind = ctrl+b=two\n"))
+	graph := configgraph.Graph{
+		Roots: []string{rootPath},
+		Files: []configgraph.File{
+			{Path: rootPath, Document: root},
+			{Path: childPath, Document: child},
+		},
+		Assignments: []configgraph.Assignment{
+			{Key: "keybind", Value: "ctrl+a=one", Path: childPath, Line: 1, SourceFile: 1},
+			{Key: "keybind", Value: "ctrl+b=two", Path: childPath, Line: 2, SourceFile: 1},
+		},
+	}
+	options := []schema.Option{{Key: "keybind", Kind: schema.KindKeybind, Edit: schema.EditRepeatable}}
+	model := NewGraphModel(options, rootPath, root, graph)
+	items := model.repeatableItemsFor("keybind")
+	items = append(items[1:], repeatableItem{Key: "keybind", Path: rootPath, Value: "ctrl+c=three"})
+	if err := model.stageRepeatable("keybind", items); err != nil {
+		t.Fatalf("stage repeatable graph value: %v", err)
+	}
+	if got := string(model.fileDrafts[1].Bytes()); got != "keybind = ctrl+b=two\n" {
+		t.Fatalf("child repeatable draft = %q", got)
+	}
+	if got := string(model.fileDrafts[0].Bytes()); got != "config-file = child.ghostty\nkeybind = ctrl+c=three\n" {
+		t.Fatalf("root repeatable draft = %q", got)
+	}
+}
+
+func TestRepeatableEditorAddsValueThroughListControls(t *testing.T) {
+	original := configdoc.Parse([]byte("keybind = ctrl+a=one\n"))
+	options := []schema.Option{{Key: "keybind", Kind: schema.KindKeybind, Edit: schema.EditRepeatable}}
+	model := NewModel(options, "fixture.ghostty", original)
+
+	model, _ = model.Update(printable("e"))
+	if model.Mode() != ModeEdit || !model.repeatableMode {
+		t.Fatalf("repeatable editor did not open: mode=%v repeatable=%v", model.Mode(), model.repeatableMode)
+	}
+	model, _ = model.Update(printable("a"))
+	if !model.repeatableEditing {
+		t.Fatal("add control did not open the value input")
+	}
+	model.input.SetValue("ctrl+b=two")
+	model, _ = model.Update(special(tea.KeyEnter))
+	model, _ = model.Update(special(tea.KeyEnter))
+	if model.Mode() != ModeBrowse || !model.HasChanges() {
+		t.Fatalf("repeatable list did not stage: mode=%v changes=%v", model.Mode(), model.HasChanges())
+	}
+	if got := string(model.DraftBytes()); got != "keybind = ctrl+a=one\nkeybind = ctrl+b=two\n" {
+		t.Fatalf("repeatable list draft = %q", got)
 	}
 }
 

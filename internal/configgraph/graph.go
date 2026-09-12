@@ -39,8 +39,9 @@ type Diagnostic struct {
 	Message  string
 }
 
-// File is one lossless source document in the graph. Document is read-only to
-// callers in the current vertical slice; later save work will add draft APIs.
+// File is one lossless source document in the graph. The loader returns the
+// original document; callers may provide draft documents through
+// WithDocuments without flattening the graph.
 type File struct {
 	Path     string
 	Document configdoc.Document
@@ -168,6 +169,130 @@ func (g Graph) DocumentFor(path string) (configdoc.Document, bool) {
 		return g.Files[index].Document, true
 	}
 	return configdoc.Document{}, false
+}
+
+// WithDocuments returns a graph-shaped view using replacement documents for
+// the loaded files. It replays the current root/include traversal so
+// effective assignments, include edges, and diagnostics reflect an in-memory draft.
+// Unknown or newly referenced include files are not loaded here; the next
+// persisted reload is responsible for discovering them and reporting any
+// diagnostics.
+func (g Graph) WithDocuments(documents map[string]configdoc.Document) Graph {
+	clone := g
+	clone.Files = make([]File, len(g.Files))
+	for index, file := range g.Files {
+		clone.Files[index] = File{Path: file.Path, Document: file.Document}
+		if document, ok := documents[file.Path]; ok {
+			clone.Files[index].Document = document
+			continue
+		}
+		canonical := canonicalPath(file.Path)
+		for path, document := range documents {
+			if canonicalPath(path) == canonical {
+				clone.Files[index].Document = document
+				break
+			}
+		}
+	}
+	clone.Assignments = nil
+	clone.rebuildAssignments()
+	return clone
+}
+
+func (g *Graph) rebuildAssignments() {
+	g.Assignments = nil
+	g.Includes = nil
+	g.Diagnostics = nil
+	byPath := make(map[string]int, len(g.Files)*2)
+	for index, file := range g.Files {
+		byPath[file.Path] = index
+		byPath[canonicalPath(file.Path)] = index
+	}
+	active := make(map[int]bool, len(g.Files))
+	stack := make([]string, 0, len(g.Files))
+	var visit func(string) bool
+	visit = func(path string) bool {
+		index, ok := byPath[path]
+		if !ok {
+			index, ok = byPath[canonicalPath(path)]
+		}
+		if !ok || active[index] {
+			return false
+		}
+		active[index] = true
+		stack = append(stack, canonicalPath(path))
+		file := g.Files[index]
+		for lineIndex, node := range file.Document.Nodes {
+			if node.Kind != configdoc.AssignmentNode {
+				continue
+			}
+			line := lineIndex + 1
+			if node.Key == "config-file" {
+				request, err := parseInclude(node.Value)
+				if err != nil {
+					g.Diagnostics = append(g.Diagnostics, Diagnostic{
+						Severity: SeverityError,
+						Path:     file.Path,
+						Line:     line,
+						Message:  "invalid config-file value: " + err.Error(),
+					})
+					continue
+				}
+				resolved := resolveInclude(file.Path, request.value)
+				includeIndex := len(g.Includes)
+				g.Includes = append(g.Includes, Include{
+					SourcePath:   file.Path,
+					Line:         line,
+					Value:        request.value,
+					Optional:     request.optional,
+					ResolvedPath: resolved,
+				})
+				targetIndex, exists := byPath[resolved]
+				if !exists {
+					targetIndex, exists = byPath[canonicalPath(resolved)]
+				}
+				if exists {
+					if active[targetIndex] {
+						g.Diagnostics = append(g.Diagnostics, Diagnostic{
+							Severity: SeverityWarning,
+							Path:     resolved,
+							Line:     line,
+							Message:  fmt.Sprintf("config-file cycle ignored: %s", strings.Join(append(stack, canonicalPath(resolved)), " -> ")),
+						})
+					} else {
+						g.Includes[includeIndex].Loaded = visit(resolved)
+					}
+				} else {
+					severity := SeverityError
+					if request.optional {
+						severity = SeverityInfo
+					}
+					g.Diagnostics = append(g.Diagnostics, Diagnostic{
+						Severity: severity,
+						Path:     file.Path,
+						Line:     line,
+						Message:  fmt.Sprintf("config-file %q: file is not part of the loaded graph", resolved),
+					})
+				}
+				continue
+			}
+			g.Assignments = append(g.Assignments, Assignment{
+				Key:        node.Key,
+				Value:      node.Value,
+				Empty:      node.Value == "",
+				Path:       file.Path,
+				Line:       line,
+				RawLine:    strings.TrimSuffix(strings.TrimSuffix(string(node.Raw), "\n"), "\r"),
+				SourceFile: index,
+			})
+		}
+		active[index] = false
+		stack = stack[:len(stack)-1]
+		return true
+	}
+	for _, root := range g.Roots {
+		visit(root)
+	}
 }
 
 // ErrorCount returns the number of error diagnostics in the graph.

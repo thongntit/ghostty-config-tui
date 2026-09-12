@@ -27,11 +27,12 @@ const (
 	KindCommand    ValueKind = "command"
 )
 
-// EditMode controls whether the MVP may stage a value for an option.
+// EditMode describes the shape of the edit session exposed for an option.
 type EditMode string
 
 const (
 	EditScalar             EditMode = "scalar"
+	EditRepeatable         EditMode = "repeatable"
 	EditReadOnlyRepeatable EditMode = "read-only"
 )
 
@@ -65,8 +66,8 @@ type Catalog struct {
 	Options        []Option `json:"options"`
 }
 
-var durationComponentPattern = regexp.MustCompile(`^[0-9]+(?:\.[0-9]+)?(?:ns|us|µs|ms|s|m|h)$`)
-var durationSequencePattern = regexp.MustCompile(`^(?:[0-9]+(?:\.[0-9]+)?(?:ns|us|µs|ms|s|m|h))+$`)
+var durationComponentPattern = regexp.MustCompile(`^[0-9]+(?:\.[0-9]+)?(?:ns|us|µs|ms|s|m|h|d|w|y)$`)
+var durationSequencePattern = regexp.MustCompile(`^(?:[0-9]+(?:\.[0-9]+)?(?:ns|us|µs|ms|s|m|h|d|w|y))+$`)
 
 // Load decodes a reviewed schema catalog from JSON.
 func Load(r io.Reader) (Catalog, error) {
@@ -199,12 +200,41 @@ func validDuration(value string) bool {
 
 // Editable reports whether the option can be changed by the current editor.
 func (o Option) Editable() bool {
-	return o.Edit != EditReadOnlyRepeatable && o.Kind != KindRepeatable
+	return o.Edit != EditReadOnlyRepeatable
 }
 
-// WithBootstrapEditors returns a catalog with only the original safe scalar
-// editors enabled. It is used for the explicit single-file compatibility
-// mode while the full graph editor is still read-only.
+// Repeatable reports whether an option owns an ordered list of assignments.
+// Keybindings use the same source representation even though they have a
+// dedicated grammar.
+func (o Option) Repeatable() bool {
+	return o.Edit == EditRepeatable || o.Kind == KindRepeatable || o.Kind == KindKeybind
+}
+
+// WithAllEditors enables the catalog's generic editor for every known option.
+// Scalar values use typed validation and repeatable/keybind values use an
+// occurrence editor. Grammar-specific choices are still optional; users can
+// always replace a value through the raw input field.
+func (c Catalog) WithAllEditors() Catalog {
+	clone := c
+	clone.Options = append([]Option(nil), c.Options...)
+	for index := range clone.Options {
+		option := &clone.Options[index]
+		if option.Kind == KindRepeatable || option.Kind == KindKeybind {
+			option.Edit = EditRepeatable
+		} else {
+			option.Edit = EditScalar
+		}
+		if option.Key == "font-size" && option.Step == nil {
+			step := 0.5
+			option.Step = &step
+		}
+	}
+	return clone
+}
+
+// WithBootstrapEditors returns the original four-option catalog overlay. It
+// is retained for compatibility with the first vertical-slice tests; new
+// application code should use WithAllEditors.
 func (c Catalog) WithBootstrapEditors() Catalog {
 	clone := c
 	clone.Options = append([]Option(nil), c.Options...)
@@ -236,6 +266,6 @@ func BootstrapOptions() []Option {
 		{Key: "font-size", Category: "Appearance", Kind: KindNumber, Edit: EditScalar, Description: "Font size in points."},
 		{Key: "background", Category: "Appearance", Kind: KindColor, Edit: EditScalar, Description: "Terminal background color."},
 		{Key: "foreground", Category: "Appearance", Kind: KindColor, Edit: EditScalar, Description: "Terminal foreground color."},
-		{Key: "keybind", Category: "Input", Kind: KindRepeatable, Edit: EditReadOnlyRepeatable, Description: "Keyboard shortcut and action pair."},
+		{Key: "keybind", Category: "Input", Kind: KindKeybind, Edit: EditRepeatable, Description: "Keyboard shortcut and action pair."},
 	}
 }

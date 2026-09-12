@@ -27,13 +27,13 @@ func TestSourceRevisionExtractsBuildRevision(t *testing.T) {
 }
 
 func TestCatalogFromDocsDeduplicatesAndClassifiesOptions(t *testing.T) {
-	docs := []byte("# A theme.\ntheme =\n\n# Toggle it.\nenable-feature = true\n\n# Additional configuration files to read.\nconfig-file = ?optional.conf\n\n# Binding.\nkeybind = ctrl+a=ignore\n\n# duplicate docs entry\ntheme =\n")
+	docs := []byte("# A theme.\ntheme =\n\n# Toggle it.\nenable-feature = true\n\n# Font size.\nfont-size = 13\n\n# Additional configuration files to read.\nconfig-file = ?optional.conf\n\n# Binding.\nkeybind = ctrl+a=ignore\n\n# duplicate docs entry\ntheme =\n")
 	catalog, err := catalogFromDocs(docs, "test")
 	if err != nil {
 		t.Fatalf("catalog from docs: %v", err)
 	}
-	if len(catalog.Options) != 4 {
-		t.Fatalf("options = %d, want 4", len(catalog.Options))
+	if len(catalog.Options) != 5 {
+		t.Fatalf("options = %d, want 5", len(catalog.Options))
 	}
 	byKey := make(map[string]schema.Option, len(catalog.Options))
 	for _, option := range catalog.Options {
@@ -42,11 +42,17 @@ func TestCatalogFromDocsDeduplicatesAndClassifiesOptions(t *testing.T) {
 	if byKey["enable-feature"].Kind != schema.KindBoolean {
 		t.Fatalf("boolean classification = %q", byKey["enable-feature"].Kind)
 	}
-	if byKey["config-file"].Kind != schema.KindPath {
-		t.Fatalf("path classification = %q", byKey["config-file"].Kind)
+	if byKey["config-file"].Kind != schema.KindRepeatable {
+		t.Fatalf("config-file classification = %q", byKey["config-file"].Kind)
 	}
 	if byKey["keybind"].Kind != schema.KindKeybind {
 		t.Fatalf("keybind classification = %q", byKey["keybind"].Kind)
+	}
+	if byKey["keybind"].Edit != schema.EditRepeatable || byKey["theme"].Edit != schema.EditScalar {
+		t.Fatalf("editor classification = keybind:%q theme:%q", byKey["keybind"].Edit, byKey["theme"].Edit)
+	}
+	if byKey["font-size"].Step == nil || *byKey["font-size"].Step != 0.5 {
+		t.Fatalf("font-size step = %+v, want 0.5", byKey["font-size"].Step)
 	}
 	if !strings.Contains(byKey["theme"].Docs, "#theme") {
 		t.Fatalf("theme docs link = %q", byKey["theme"].Docs)

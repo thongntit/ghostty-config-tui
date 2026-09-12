@@ -8,7 +8,7 @@ without requiring users to memorize the raw configuration syntax.
 Make Ghostty configuration discoverable, safe, and approachable while keeping
 the user's existing config intact.
 
-## MVP direction
+## Current behavior
 
 - Load the user's Ghostty config from its standard location.
 - Browse and search settings by category.
@@ -18,7 +18,7 @@ the user's existing config intact.
 - Preserve comments and options the application does not yet understand.
 - Create a backup before writing changes.
 
-## Try the dry-run editor
+## Run the editor
 
 With no arguments, the app reads all existing default Ghostty config files,
 follows their `config-file` includes, and shows the effective values with
@@ -49,22 +49,25 @@ flattens source documents into a file to write. If no root file exists, it
 reports the checked paths and suggests `--config PATH`; it does not create a
 config file.
 
-Browse with `↑`/`k` and `↓`/`j`. Press `enter` or `e` to edit a supported scalar,
-`r` to stage an explicit default reset, `u` to revert a staged option, and `p`
-to preview the candidate document. `q` asks for confirmation when changes are
-staged. Repeatable values such as `keybind` are visible but read-only for now.
+Browse with `↑`/`k` and `↓`/`j`. Press `enter` or `e` to edit any catalog option,
+`r` to stage a default reset, `u` to revert a staged option, `p` to preview,
+and `ctrl+s` to save. Press `q`, then `y`, to save and quit; `d` discards the
+staged changes and quits.
 
-The full discovered catalog supports read-only browsing/search and
-effective-value preview. A single discovered or explicit root with no
-`config-file` includes also exposes friendly dry-run editors for the initial
-safe scalar options: `font-size` uses a half-point stepper, `background` and
-`foreground` use a searchable color chooser with swatches, and `theme` uses
-Ghostty's installed theme inventory when available. `ctrl+r` keeps an
-explicit raw-value escape hatch; unknown existing values are preserved.
-Multiple roots, includes, repeatable values, and special grammars remain
-read-only until their source target can be selected safely. All modes keep
-original and draft documents separate and do not invoke Ghostty or write any
-file.
+Scalar options use typed validation, boolean toggles, numeric steppers, and
+friendly theme/color choosers where an inventory is available. Repeatable
+options such as `font-family`, `palette`, `env`, `keybind`, and `config-file`
+open a list editor where each occurrence can be added, changed, or removed.
+For duplicate scalar assignments, the editor targets the effective source
+line and displays its file and line number. New values are added to the
+selected root when no source assignment exists.
+
+The editor keeps one draft per root/include file. Preview shows the exact
+per-file candidate changes and the resulting effective graph. Saving checks
+that every source is unchanged, writes a `.bak` backup, and atomically replaces
+all changed files; Ghostty's own validator is also run for a single-file
+candidate when the Ghostty binary is available. Loading never creates or
+writes a file.
 
 Architecture and implementation decisions are recorded in
 [`docs/tech-stack.md`](docs/tech-stack.md).

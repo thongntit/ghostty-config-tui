@@ -84,65 +84,50 @@ func (m Model) editorLabel(option schema.Option) string {
 	switch {
 	case option.Key == "theme" && len(m.themeChoices) > 0:
 		return "theme chooser"
-	case (option.Key == "background" || option.Key == "foreground") && len(m.colorChoices) > 0:
+	case option.Kind == schema.KindColor && option.Key != "palette" && len(m.colorChoices) > 0:
 		return "color chooser"
-	case option.Key == "font-size" && option.Step != nil:
+	case option.Kind == schema.KindNumber:
 		return "numeric stepper"
 	case option.Kind == schema.KindBoolean:
 		return "on/off toggle"
+	case option.Kind == schema.KindKeybind:
+		return "keybinding list"
+	case option.Repeatable():
+		return "repeatable list"
+	case option.Kind == schema.KindCommand:
+		return "command input"
 	default:
-		return string(option.Kind)
+		return "text input"
 	}
 }
 
 func (m Model) optionStatus(option schema.Option) string {
-	if m.graph != nil && !m.readOnly {
-		return m.draftOptionStatus(option)
+	assignments := m.optionAssignments(option.Key)
+	if len(assignments) == 0 {
+		return "not set"
 	}
-	if m.graph != nil {
-		if option.Key == "config-file" {
-			if len(m.graph.Includes) == 0 {
-				return "not set"
-			}
-			return fmt.Sprintf("%d included files", len(m.graph.Includes))
-		}
-		assignments := m.graph.AssignmentsFor(option.Key)
-		if len(assignments) == 0 {
-			return "not set"
-		}
-		effective := assignments[len(assignments)-1]
-		if effective.Empty {
-			return "default"
-		}
-		if len(assignments) > 1 {
-			return fmt.Sprintf("%s (%d assignments)", effective.Value, len(assignments))
-		}
-		return effective.Value
+	if option.Repeatable() {
+		return fmt.Sprintf("%d value(s)", len(assignments))
 	}
-
-	return m.draftOptionStatus(option)
+	effective := assignments[len(assignments)-1]
+	if effective.Empty {
+		return "default"
+	}
+	if len(assignments) > 1 {
+		return fmt.Sprintf("%s (%d assignments)", effective.Value, len(assignments))
+	}
+	return effective.Value
 }
 
 func (m Model) draftOptionStatus(option schema.Option) string {
-	assignments := m.draft.Assignments(option.Key)
-	switch len(assignments) {
-	case 0:
-		return "not set"
-	case 1:
-		if assignments[0].Empty {
-			return "default"
-		}
-		return assignments[0].Value
-	default:
-		return "duplicate (read-only)"
-	}
+	return m.optionStatus(option)
 }
 
 func (m Model) optionSource(option schema.Option) string {
 	if m.graph == nil {
 		return ""
 	}
-	assignments := m.graph.AssignmentsFor(option.Key)
+	assignments := m.optionAssignments(option.Key)
 	if len(assignments) == 0 {
 		return "No assignment in loaded config graph"
 	}

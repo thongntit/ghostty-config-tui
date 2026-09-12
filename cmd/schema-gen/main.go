@@ -126,16 +126,21 @@ func catalogFromDocs(docs []byte, ghosttyVersion string) (schema.Catalog, error)
 			if description == "" {
 				description = "Ghostty configuration option."
 			}
-			options = append(options, schema.Option{
+			option := schema.Option{
 				Key:          node.Key,
 				Category:     categoryFor(node.Key),
 				Kind:         kindFor(node.Key, node.Value, context),
 				Description:  description,
-				Edit:         schema.EditReadOnlyRepeatable,
+				Edit:         editFor(node.Key, node.Value, context),
 				Default:      node.Value,
 				Availability: availabilityFor(context),
 				Docs:         "https://ghostty.org/docs/config/reference#" + node.Key,
-			})
+			}
+			if node.Key == "font-size" {
+				step := 0.5
+				option.Step = &step
+			}
+			options = append(options, option)
 			comments = nil
 		default:
 			comments = nil
@@ -202,7 +207,7 @@ func kindFor(key, defaultValue, context string) schema.ValueKind {
 	if key == "keybind" {
 		return schema.KindKeybind
 	}
-	if strings.Contains(context, "can be repeated") || strings.Contains(context, "repeated multiple") || strings.Contains(context, "multiple times") {
+	if repeatableKey(key) {
 		return schema.KindRepeatable
 	}
 	if key == "command" || key == "initial-command" {
@@ -214,7 +219,7 @@ func kindFor(key, defaultValue, context string) schema.ValueKind {
 	if strings.Contains(key, "duration") || strings.Contains(key, "interval") || strings.Contains(key, "timeout") {
 		return schema.KindDuration
 	}
-	if strings.Contains(key, "color") || key == "background" || key == "foreground" || key == "palette" {
+	if strings.Contains(key, "color") || key == "background" || key == "foreground" {
 		return schema.KindColor
 	}
 	if defaultValue == "true" || defaultValue == "false" {
@@ -224,6 +229,23 @@ func kindFor(key, defaultValue, context string) schema.ValueKind {
 		return schema.KindNumber
 	}
 	return schema.KindString
+}
+
+func editFor(key, defaultValue, context string) schema.EditMode {
+	if key == "keybind" || repeatableKey(key) {
+		return schema.EditRepeatable
+	}
+	return schema.EditScalar
+}
+
+func repeatableKey(key string) bool {
+	switch key {
+	case "font-family", "font-feature", "font-variation", "font-codepoint-map", "clipboard-codepoint-map",
+		"palette", "env", "input", "key-remap", "command-palette-entry", "config-file", "custom-shader", "gtk-custom-css":
+		return true
+	default:
+		return false
+	}
 }
 
 func availabilityFor(context string) []string {

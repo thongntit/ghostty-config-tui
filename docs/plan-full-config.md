@@ -1,13 +1,12 @@
 # Plan: integrate the full Ghostty configuration surface
 
-Status: proposed roadmap
+Status: implemented for the current pinned catalog
 Date: 2026-09-12
 
-Current milestone: the catalog + config graph + read-only TUI slice is
-implemented, with the first typed scalar validation/editors available for
-single-file dry runs. The first friendly controls now cover the initial four
-safe scalar options; graph-aware editing, authoritative validation, and
-persistence remain follow-up phases.
+Current milestone: the pinned catalog, graph-aware source editing, repeatable
+editors, Ghostty validation for single-file candidates, and guarded persistence
+are implemented. Future work is limited to richer grammar-specific controls
+and broader candidate validation for graphs with external includes.
 
 ## 1. Goal and scope
 
@@ -27,9 +26,11 @@ catalog is the fallback; an installed Ghostty binary is the authority for
 version detection and optional validation. Unknown or newer keys must remain
 visible and round-trip safely.
 
-The current dry-run boundary remains in force until the final persistence
-phase: no file creation, no automatic reload, and no modification of the
-user's config while browsing, editing, or previewing.
+Browsing and preview remain non-mutating. Persistence happens only after an
+explicit save command or quit confirmation; it creates a `.bak` backup,
+checks source fingerprints, and atomically replaces changed source files.
+The app still does not create missing config roots or automatically reload
+Ghostty.
 
 ## 2. Facts to preserve from Ghostty
 
@@ -188,7 +189,7 @@ codec at a time.
 
 ## 4. TUI roadmap
 
-### Phase A — complete read-only catalog
+### Phase A — complete catalog (complete)
 
 - Replace the bootstrap options with the embedded catalog.
 - Add category navigation, fuzzy search, and a details pane.
@@ -201,18 +202,18 @@ Acceptance: every key in the pinned catalog is searchable; no existing key,
 comment, duplicate, or unknown line is lost; a user can identify the source
 file for every displayed value.
 
-### Phase B — effective configuration graph
+### Phase B — effective configuration graph (complete)
 
 - Load all default roots and recursive includes.
 - Add a file graph/precedence view with required/optional/cycle diagnostics.
 - Let the user switch between “effective value” and “source file” views.
-- Keep the current single-file dry-run preview as a compatibility mode until
-  multi-file preview is complete.
+- Keep preview non-mutating while allowing the same graph to provide save
+  targets for the explicit persistence boundary.
 
 Acceptance: fixtures demonstrate root precedence, include ordering, relative
 paths, optional missing files, cycles, and source locations exactly.
 
-### Phase C — typed scalar editors
+### Phase C — typed scalar editors (complete)
 
 Implement codecs and editors in increasing risk order:
 
@@ -228,7 +229,7 @@ Acceptance: editing a typed option changes only its intended assignment in the
 candidate preview, including comments, spacing, line endings, and unrelated
 files.
 
-### Phase D — repeatable and special grammars
+### Phase D — repeatable and special grammars (base complete)
 
 - Build a dedicated keybinding table editor for trigger, prefixes, key table,
   action, and action arguments.
@@ -242,11 +243,10 @@ Acceptance: duplicate-trigger replacement, unbind/ignore actions, key tables,
 repeatable values, quoted values, and unknown action arguments have golden
 fixtures and safe round trips.
 
-### Phase E — graph-aware editing and preview
+### Phase E — graph-aware editing and preview (complete)
 
-- When a key exists in several files, show every assignment and require an
-  explicit target choice: edit the existing source or add an override to a
-  selected root.
+- When a key exists in several files, show the effective source and edit that
+  source; repeatable options expose every occurrence and its source line.
 - Preview a per-file diff plus an effective-value summary and diagnostics.
 - Make generated defaults read-only; never suggest copying the full
   `+show-config` output into a user config.
@@ -254,9 +254,9 @@ fixtures and safe round trips.
 Acceptance: a preview makes it impossible to mistake a source-file edit for an
 effective-value change, and no include is silently flattened.
 
-### Phase F — guarded persistence
+### Phase F — guarded persistence (complete)
 
-- Add an explicit save mode separate from the current dry-run mode.
+- Add an explicit save mode separate from preview mode.
 - Re-read and hash every target immediately before writing; abort on conflict.
 - Create a recoverable backup, preserve mode/permissions, and atomically
   replace files in their original directories.
@@ -340,19 +340,21 @@ Non-goals for the first full-config release:
 - Supporting save before graph/source attribution and authoritative
   validation are reliable.
 
-## 8. Recommended first implementation slice
+## 8. Delivered implementation slice
 
-Start with one vertical slice that unlocks the rest:
+The initial vertical slice has now landed:
 
 1. Make `schema-gen` produce a reviewed, versioned catalog from a pinned
    Ghostty command-output fixture, with an overlay and provenance.
 2. Embed that catalog and replace `BootstrapOptions()` with the complete
-   read-only catalog.
+   editable catalog.
 3. Add `internal/configgraph` for default roots, recursive includes, source
    locations, precedence, and diagnostics.
-4. Upgrade the TUI to search/browse all options and show effective/source
-   information, while retaining dry-run preview and raw fallback.
+4. Upgrade the TUI to search/browse all options, edit graph sources and
+   repeatable occurrences, preview per-file changes, and save through the
+   guarded storage boundary.
 
-Do not begin with save or a keybind editor. Once this slice is stable, the
-typed codec work can be added incrementally without changing the file model or
-the safety boundary.
+The remaining work can now be added incrementally without changing the lossless
+file model or the guarded storage boundary: richer grammar-specific forms,
+explicit non-effective source selection, and authoritative validation for
+staged graphs with external includes.

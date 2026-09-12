@@ -12,6 +12,7 @@ type KeyMap struct {
 	Reset   key.Binding
 	Undo    key.Binding
 	Preview key.Binding
+	Save    key.Binding
 	Help    key.Binding
 	Escape  key.Binding
 	Left    key.Binding
@@ -52,6 +53,10 @@ var defaultKeyMap = KeyMap{
 	Preview: key.NewBinding(
 		key.WithKeys("p"),
 		key.WithHelp("p", "preview"),
+	),
+	Save: key.NewBinding(
+		key.WithKeys("ctrl+s"),
+		key.WithHelp("ctrl+s", "save"),
 	),
 	Help: key.NewBinding(
 		key.WithKeys("?"),

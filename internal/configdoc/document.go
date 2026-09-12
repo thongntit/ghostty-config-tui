@@ -17,6 +17,7 @@ const (
 var (
 	ErrAmbiguousAssignment = errors.New("configuration key has multiple assignments")
 	ErrInvalidKey          = errors.New("configuration key must not be empty")
+	ErrAssignmentTarget    = errors.New("configuration assignment target is no longer available")
 	ErrUnsafeValue         = errors.New("configuration value contains a line break or NUL")
 )
 

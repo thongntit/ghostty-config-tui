@@ -1,8 +1,11 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
@@ -10,6 +13,7 @@ import (
 	"github.com/thongntit/ghostty-config-tui/internal/configgraph"
 	"github.com/thongntit/ghostty-config-tui/internal/ghostty"
 	"github.com/thongntit/ghostty-config-tui/internal/schema"
+	"github.com/thongntit/ghostty-config-tui/internal/storage"
 	"github.com/thongntit/ghostty-config-tui/internal/tui"
 )
 
@@ -21,16 +25,15 @@ type Options struct {
 	ConfigPath string
 }
 
-// Model composes the loaded source document with the terminal UI. Loading is
-// read-only; the TUI owns an independent draft and offers preview only.
+// Model composes the loaded source graph with the terminal UI. The TUI owns
+// independent drafts; storage is called only after explicit confirmation.
 type Model struct {
 	ui tui.Model
 }
 
 // New discovers or loads Ghostty config roots, builds an effective graph, and
-// creates a dry-run editor for it. Discovery never creates files. A single
-// root without includes keeps the safe scalar editor enabled; graph inputs
-// with multiple files remain read-only until edit targets are explicit.
+// creates a full editor for it. Discovery never creates files. Every loaded
+// source file remains addressable and save uses a guarded multi-file commit.
 func New(options Options) (Model, error) {
 	configPath := options.ConfigPath
 	loadStatus := ""
@@ -64,20 +67,59 @@ func New(options Options) (Model, error) {
 	if err != nil {
 		return Model{}, fmt.Errorf("load embedded Ghostty catalog: %w", err)
 	}
-	readOnly := true
-	if len(roots) == 1 && len(graph.Includes) == 0 {
-		catalog = catalog.WithBootstrapEditors()
-		readOnly = false
-	}
+	catalog = catalog.WithAllEditors()
 	ui := tui.NewGraphModel(optionsWithUnknowns(catalog.Options, graph), configPath, document, graph)
-	ui.SetReadOnly(readOnly)
-	if !readOnly {
-		loadChoiceProviders(&ui)
-	}
+	ghosttyBinary := ghostty.Find()
+	ui.SetSaveFunc(func(changes []tui.FileSnapshot) error {
+		if ghosttyBinary != "" && len(graph.Files) == 1 && len(changes) == 1 {
+			if err := validateCandidate(ghosttyBinary, changes[0].Path, changes[0].Candidate); err != nil && !errors.Is(err, ghostty.ErrValidatorUnavailable) {
+				return err
+			}
+		}
+		files := make([]storage.FileChange, len(changes))
+		for index, change := range changes {
+			files[index] = storage.FileChange{
+				Path:      change.Path,
+				Original:  change.Original,
+				Candidate: change.Candidate,
+			}
+		}
+		return storage.SaveAll(files)
+	})
+	loadChoiceProviders(&ui)
 	ui.SetStatus(loadStatus)
 	return Model{
 		ui: ui,
 	}, nil
+}
+
+func validateCandidate(binary, sourcePath string, candidate []byte) error {
+	directory := filepath.Dir(sourcePath)
+	if directory == "" {
+		directory = "."
+	}
+	prefix := ".ghostty-config-tui-validate-"
+	if base := filepath.Base(sourcePath); base != "." && base != string(filepath.Separator) {
+		prefix = "." + base + ".ghostty-config-tui-validate-"
+	}
+	temporary, err := os.CreateTemp(directory, prefix+"*.ghostty")
+	if err != nil {
+		return fmt.Errorf("create validation candidate: %w", err)
+	}
+	path := temporary.Name()
+	defer os.Remove(path)
+	if err := temporary.Chmod(0o600); err != nil {
+		_ = temporary.Close()
+		return fmt.Errorf("set validation candidate permissions: %w", err)
+	}
+	if _, err := temporary.Write(candidate); err != nil {
+		_ = temporary.Close()
+		return fmt.Errorf("write validation candidate: %w", err)
+	}
+	if err := temporary.Close(); err != nil {
+		return fmt.Errorf("close validation candidate: %w", err)
+	}
+	return ghostty.ValidateConfig(context.Background(), binary, filepath.Clean(path))
 }
 
 func loadChoiceProviders(ui *tui.Model) {
@@ -113,7 +155,7 @@ func optionsWithUnknowns(options []schema.Option, graph configgraph.Graph) []sch
 			Category:    "Custom",
 			Kind:        schema.KindString,
 			Description: "Unknown configuration key preserved from the loaded Ghostty config.",
-			Edit:        schema.EditReadOnlyRepeatable,
+			Edit:        schema.EditScalar,
 		})
 	}
 	return result

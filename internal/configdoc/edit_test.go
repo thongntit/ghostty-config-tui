@@ -63,3 +63,27 @@ func TestSetScalarCandidateIsStableAfterReparse(t *testing.T) {
 		t.Fatalf("candidate is not stable after reparse:\n got %q\nwant %q", got, candidate)
 	}
 }
+
+func TestTargetedAssignmentsSupportDuplicateAndRepeatableEdits(t *testing.T) {
+	document := Parse([]byte("# keep\nkeybind = ctrl+a=first\nkeybind = ctrl+b=second\n"))
+	if _, err := document.SetAssignment("keybind", 2, "ctrl+a=updated"); err != nil {
+		t.Fatalf("targeted edit: %v", err)
+	}
+	if _, err := document.AppendAssignment("keybind", "ctrl+c=third"); err != nil {
+		t.Fatalf("append repeatable: %v", err)
+	}
+	if err := document.RemoveAssignment("keybind", 3); err != nil {
+		t.Fatalf("remove repeatable: %v", err)
+	}
+	want := "# keep\nkeybind = ctrl+a=updated\nkeybind = ctrl+c=third\n"
+	if got := string(document.Bytes()); got != want {
+		t.Fatalf("targeted document = %q, want %q", got, want)
+	}
+}
+
+func TestTargetedAssignmentRejectsStaleLine(t *testing.T) {
+	document := Parse([]byte("theme = dark\n"))
+	if _, err := document.SetAssignment("font-size", 1, "14"); err != ErrAssignmentTarget {
+		t.Fatalf("stale target error = %v, want %v", err, ErrAssignmentTarget)
+	}
+}

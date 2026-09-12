@@ -10,9 +10,11 @@ round trip even when they are not present in this schema.
 `cmd/schema-gen` imports documentation from a pinned Ghostty executable using
 `ghostty +show-config --default --docs`. The generated catalog is reviewed and
 copied into `internal/schema/options.json`, where it is embedded into release
-builds. The generator intentionally emits read-only options until a dedicated
-typed codec has been reviewed; catalog metadata is not a promise that every
-Ghostty grammar is editable yet.
+builds. Every generated option is exposed to the editor: scalar options use
+typed validation plus a raw-value input, while repeatable and keybinding
+options use an occurrence list editor. Friendly controls are layered on top
+when the catalog has enough metadata or Ghostty can provide an inventory;
+unknown keys remain editable as raw one-line values.
 
 Regenerate both catalog copies on a machine with Ghostty installed:
 
