@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
@@ -125,17 +126,48 @@ func validateCandidate(binary, sourcePath string, candidate []byte) error {
 func loadChoiceProviders(ui *tui.Model) {
 	binary := ghostty.Find()
 	if binary == "" {
+		ui.SetActionChoices(tui.FallbackActionChoices())
 		return
 	}
-	if themes, err := ghostty.ListThemes(binary); err == nil {
+	var wait sync.WaitGroup
+	var themes []string
+	var colors []ghostty.ColorChoice
+	var fonts []string
+	var actions []string
+	var themeErr, colorErr, fontErr, actionErr error
+	wait.Add(4)
+	go func() {
+		defer wait.Done()
+		themes, themeErr = ghostty.ListThemes(binary)
+	}()
+	go func() {
+		defer wait.Done()
+		colors, colorErr = ghostty.ListColors(binary)
+	}()
+	go func() {
+		defer wait.Done()
+		fonts, fontErr = ghostty.ListFonts(binary)
+	}()
+	go func() {
+		defer wait.Done()
+		actions, actionErr = ghostty.ListActions(binary)
+	}()
+	wait.Wait()
+	if themeErr == nil {
 		ui.SetThemeChoices(themes)
 	}
-	if colors, err := ghostty.ListColors(binary); err == nil {
+	if colorErr == nil {
 		choices := make([]tui.ColorChoice, len(colors))
 		for index, color := range colors {
 			choices[index] = tui.ColorChoice{Name: color.Name, Value: color.Value}
 		}
 		ui.SetColorChoices(choices)
+	}
+	if fontErr == nil {
+		ui.SetFontChoices(fonts)
+	}
+	if actionErr == nil {
+		ui.SetActionChoices(actions)
 	}
 }
 

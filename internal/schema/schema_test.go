@@ -33,3 +33,17 @@ func TestEnumValidationUsesDeclaredValues(t *testing.T) {
 		t.Fatalf("declared enum value rejected: %v", err)
 	}
 }
+
+func TestMultipleValidationAcceptsNegatedAndBooleanForms(t *testing.T) {
+	option := Option{Key: "shell-integration-features", Kind: KindString, Multiple: true, Values: []string{"cursor", "title"}}
+	for _, value := range []string{"cursor,no-title", "true", "false", "title"} {
+		if err := option.Validate(value); err != nil {
+			t.Errorf("multiple value %q rejected: %v", value, err)
+		}
+	}
+	for _, value := range []string{"cursor,", "cursor,unknown", "no-unknown"} {
+		if err := option.Validate(value); err == nil {
+			t.Errorf("invalid multiple value %q accepted", value)
+		}
+	}
+}

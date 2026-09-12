@@ -224,6 +224,172 @@ func TestFriendlyEditorDoesNotDirtyOnNoopSelection(t *testing.T) {
 	}
 }
 
+func TestEnumChooserStagesDocumentedValue(t *testing.T) {
+	original := configdoc.Parse([]byte("window-theme = auto\n"))
+	options := []schema.Option{{Key: "window-theme", Kind: schema.KindEnum, Edit: schema.EditScalar, Values: []string{"auto", "system", "light"}}}
+	model := NewModel(options, "fixture.ghostty", original)
+
+	model, _ = model.Update(printable("e"))
+	if model.choiceMode != choiceEnum {
+		t.Fatalf("expected enum chooser, got %v", model.choiceMode)
+	}
+	model, _ = model.Update(special(tea.KeyDown))
+	model, _ = model.Update(special(tea.KeyEnter))
+	if got := string(model.DraftBytes()); got != "window-theme = system\n" {
+		t.Fatalf("enum draft = %q", got)
+	}
+}
+
+func TestMultiSelectStagesEnabledAndDisabledTokens(t *testing.T) {
+	original := configdoc.Parse([]byte("shell-integration-features = cursor,no-title\n"))
+	options := []schema.Option{{Key: "shell-integration-features", Kind: schema.KindString, Multiple: true, Values: []string{"cursor", "title"}, Edit: schema.EditScalar}}
+	model := NewModel(options, "fixture.ghostty", original)
+
+	model, _ = model.Update(printable("e"))
+	if !model.multiMode || model.multiIndex != 0 {
+		t.Fatalf("multi editor did not open: mode=%v index=%d", model.multiMode, model.multiIndex)
+	}
+	model, _ = model.Update(special(tea.KeyRight))
+	model, _ = model.Update(special(tea.KeyEnter))
+	if got := string(model.DraftBytes()); got != "shell-integration-features = no-cursor,no-title\n" {
+		t.Fatalf("multi draft = %q", got)
+	}
+}
+
+func TestMultiSelectNoopDoesNotCreateExplicitAssignment(t *testing.T) {
+	original := configdoc.Parse([]byte(""))
+	options := []schema.Option{{Key: "font-synthetic-style", Kind: schema.KindString, Multiple: true, Values: []string{"bold", "italic"}, Edit: schema.EditScalar}}
+	model := NewModel(options, "fixture.ghostty", original)
+
+	model, _ = model.Update(printable("e"))
+	model, _ = model.Update(special(tea.KeyEnter))
+	if model.HasChanges() {
+		t.Fatalf("opening and accepting an untouched multi-select dirtied the draft: %q", model.DraftBytes())
+	}
+}
+
+func TestDurationPickerStagesAmountAndUnit(t *testing.T) {
+	original := configdoc.Parse([]byte("undo-timeout = 5s\n"))
+	options := []schema.Option{{Key: "undo-timeout", Kind: schema.KindDuration, Edit: schema.EditScalar}}
+	model := NewModel(options, "fixture.ghostty", original)
+
+	model, _ = model.Update(printable("e"))
+	model, _ = model.Update(special(tea.KeyRight))
+	model, _ = model.Update(special(tea.KeyUp))
+	model, _ = model.Update(special(tea.KeyEnter))
+	if got := string(model.DraftBytes()); got != "undo-timeout = 6m\n" {
+		t.Fatalf("duration draft = %q", got)
+	}
+}
+
+func TestPairFormStagesEnvironmentValue(t *testing.T) {
+	original := configdoc.Parse([]byte("env = OLD=value\n"))
+	options := []schema.Option{{Key: "env", Kind: schema.KindRepeatable, Edit: schema.EditRepeatable}}
+	model := NewModel(options, "fixture.ghostty", original)
+
+	model, _ = model.Update(printable("e"))
+	model, _ = model.Update(printable("a"))
+	if model.repeatableForm != repeatableFormPair {
+		t.Fatalf("expected pair form, got %v", model.repeatableForm)
+	}
+	model.input.SetValue("FOO")
+	model, _ = model.Update(special(tea.KeyEnter))
+	model.input.SetValue("bar")
+	model, _ = model.Update(special(tea.KeyEnter))
+	model, _ = model.Update(special(tea.KeyEnter))
+	if got := string(model.DraftBytes()); got != "env = OLD=value\nenv = FOO=bar\n" {
+		t.Fatalf("pair draft = %q", got)
+	}
+}
+
+func TestKeybindFormUsesActionPickerAndStagesValue(t *testing.T) {
+	original := configdoc.Parse([]byte("keybind = ctrl+a=ignore\n"))
+	options := []schema.Option{{Key: "keybind", Kind: schema.KindKeybind, Edit: schema.EditRepeatable}}
+	model := NewModel(options, "fixture.ghostty", original)
+	model.SetActionChoices([]string{"ignore", "reload_config"})
+
+	model, _ = model.Update(printable("e"))
+	model, _ = model.Update(printable("e"))
+	if model.repeatableForm != repeatableFormKeybind {
+		t.Fatalf("expected keybind form, got %v", model.repeatableForm)
+	}
+	model.input.SetValue("ctrl+r")
+	model, _ = model.Update(special(tea.KeyEnter))
+	if model.choiceMode != choiceAction {
+		t.Fatalf("expected action chooser, got %v", model.choiceMode)
+	}
+	model, _ = model.Update(printable("reload"))
+	model, _ = model.Update(special(tea.KeyEnter))
+	model.input.SetValue("")
+	model, _ = model.Update(special(tea.KeyEnter))
+	model, _ = model.Update(special(tea.KeyEnter))
+	if got := string(model.DraftBytes()); got != "keybind = ctrl+r=reload_config\n" {
+		t.Fatalf("keybind draft = %q", got)
+	}
+}
+
+func TestFontFamilyRepeatableUsesFontPicker(t *testing.T) {
+	original := configdoc.Parse([]byte("font-family = Menlo\n"))
+	options := []schema.Option{{Key: "font-family", Kind: schema.KindRepeatable, Edit: schema.EditRepeatable}}
+	model := NewModel(options, "fixture.ghostty", original)
+	model.SetFontChoices([]string{"Menlo", "Monaco"})
+
+	model, _ = model.Update(printable("e"))
+	model, _ = model.Update(printable("e"))
+	if model.choiceMode != choiceFont {
+		t.Fatalf("expected font chooser, got %v", model.choiceMode)
+	}
+	model, _ = model.Update(special(tea.KeyDown))
+	model, _ = model.Update(special(tea.KeyEnter))
+	model, _ = model.Update(special(tea.KeyEnter))
+	if got := string(model.DraftBytes()); got != "font-family = Monaco\n" {
+		t.Fatalf("font picker draft = %q", got)
+	}
+}
+
+func TestPathPickerSelectsWorkingDirectory(t *testing.T) {
+	directory := t.TempDir()
+	configPath := directory + "/config.ghostty"
+	original := configdoc.Parse([]byte("working-directory = " + directory + "\n"))
+	options := []schema.Option{{Key: "working-directory", Kind: schema.KindPath, Edit: schema.EditScalar}}
+	model := NewModel(options, configPath, original)
+
+	model, _ = model.Update(printable("e"))
+	if !model.pathMode || !model.pathDirectory {
+		t.Fatalf("path picker did not open: mode=%v directory=%v", model.pathMode, model.pathDirectory)
+	}
+	// The selected directory is represented by `s`; it avoids depending on
+	// the host's temporary directory contents.
+	model, _ = model.Update(printable("s"))
+	if got := string(model.DraftBytes()); got != "working-directory = "+shortenHomePath(directory)+"\n" {
+		t.Fatalf("path picker draft = %q", got)
+	}
+}
+
+func TestCommandPaletteFormUsesQuotedFieldsAndActionPicker(t *testing.T) {
+	original := configdoc.Parse([]byte(`command-palette-entry = title:"Old",description:"Old description",action:"new_tab"
+`))
+	options := []schema.Option{{Key: "command-palette-entry", Kind: schema.KindRepeatable, Edit: schema.EditRepeatable}}
+	model := NewModel(options, "fixture.ghostty", original)
+	model.SetActionChoices([]string{"new_tab", "reload_config"})
+
+	model, _ = model.Update(printable("e"))
+	model, _ = model.Update(printable("e"))
+	if model.repeatableForm != repeatableFormCommandPalette {
+		t.Fatalf("expected command palette form, got %v", model.repeatableForm)
+	}
+	model.input.SetValue("New, title")
+	model, _ = model.Update(special(tea.KeyEnter))
+	model.input.SetValue("A description")
+	model, _ = model.Update(special(tea.KeyEnter))
+	model, _ = model.Update(printable("reload"))
+	model, _ = model.Update(special(tea.KeyEnter))
+	model, _ = model.Update(special(tea.KeyEnter))
+	if got := string(model.DraftBytes()); got != "command-palette-entry = title:\"New, title\",description:\"A description\",action:\"reload_config\"\n" {
+		t.Fatalf("command palette draft = %q", got)
+	}
+}
+
 func TestSuccessfulSavePromotesDraftBaseline(t *testing.T) {
 	original := configdoc.Parse([]byte("theme = old\n"))
 	model := NewModel([]schema.Option{{Key: "theme", Kind: schema.KindString, Edit: schema.EditScalar}}, "fixture.ghostty", original)

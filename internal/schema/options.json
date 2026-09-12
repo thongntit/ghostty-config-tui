@@ -90,7 +90,13 @@
       "description": "Control whether Ghostty should synthesize a style if the requested style is not available in the specified font-family.",
       "edit": "scalar",
       "default": "bold,italic,bold-italic",
-      "docs": "https://ghostty.org/docs/config/reference#font-synthetic-style"
+      "docs": "https://ghostty.org/docs/config/reference#font-synthetic-style",
+      "values": [
+        "bold",
+        "italic",
+        "bold-italic"
+      ],
+      "multiple": true
     },
     {
       "key": "font-feature",
@@ -180,7 +186,9 @@
       "availability": [
         "macOS"
       ],
-      "docs": "https://ghostty.org/docs/config/reference#font-thicken-strength"
+      "docs": "https://ghostty.org/docs/config/reference#font-thicken-strength",
+      "min": 0,
+      "max": 255
     },
     {
       "key": "font-shaping-break",
@@ -189,16 +197,25 @@
       "description": "Locations to break font shaping into multiple runs.",
       "edit": "scalar",
       "default": "cursor",
-      "docs": "https://ghostty.org/docs/config/reference#font-shaping-break"
+      "docs": "https://ghostty.org/docs/config/reference#font-shaping-break",
+      "values": [
+        "cursor"
+      ],
+      "multiple": true
     },
     {
       "key": "alpha-blending",
       "category": "General",
-      "kind": "string",
+      "kind": "enum",
       "description": "What color space to use when performing alpha blending.",
       "edit": "scalar",
       "default": "native",
-      "docs": "https://ghostty.org/docs/config/reference#alpha-blending"
+      "docs": "https://ghostty.org/docs/config/reference#alpha-blending",
+      "values": [
+        "native",
+        "linear",
+        "linear-corrected"
+      ]
     },
     {
       "key": "adjust-cell-width",
@@ -307,11 +324,15 @@
     {
       "key": "grapheme-width-method",
       "category": "General",
-      "kind": "string",
+      "kind": "enum",
       "description": "The method to use for calculating the cell width of a grapheme cluster.",
       "edit": "scalar",
       "default": "unicode",
-      "docs": "https://ghostty.org/docs/config/reference#grapheme-width-method"
+      "docs": "https://ghostty.org/docs/config/reference#grapheme-width-method",
+      "values": [
+        "legacy",
+        "unicode"
+      ]
     },
     {
       "key": "freetype-load-flags",
@@ -320,7 +341,15 @@
       "description": "FreeType load flags to enable.",
       "edit": "scalar",
       "default": "hinting,no-force-autohint,no-monochrome,autohint,light",
-      "docs": "https://ghostty.org/docs/config/reference#freetype-load-flags"
+      "docs": "https://ghostty.org/docs/config/reference#freetype-load-flags",
+      "values": [
+        "hinting",
+        "force-autohint",
+        "monochrome",
+        "autohint",
+        "light"
+      ],
+      "multiple": true
     },
     {
       "key": "theme",
@@ -351,7 +380,7 @@
     {
       "key": "background-image",
       "category": "Appearance",
-      "kind": "string",
+      "kind": "path",
       "description": "Background image for the terminal.",
       "edit": "scalar",
       "docs": "https://ghostty.org/docs/config/reference#background-image"
@@ -363,25 +392,45 @@
       "description": "Background image opacity.",
       "edit": "scalar",
       "default": "1",
-      "docs": "https://ghostty.org/docs/config/reference#background-image-opacity"
+      "docs": "https://ghostty.org/docs/config/reference#background-image-opacity",
+      "min": 0,
+      "max": 1,
+      "step": 0.05
     },
     {
       "key": "background-image-position",
       "category": "Appearance",
-      "kind": "string",
+      "kind": "enum",
       "description": "Background image position.",
       "edit": "scalar",
       "default": "center",
-      "docs": "https://ghostty.org/docs/config/reference#background-image-position"
+      "docs": "https://ghostty.org/docs/config/reference#background-image-position",
+      "values": [
+        "top-left",
+        "top-center",
+        "top-right",
+        "center-left",
+        "center",
+        "center-right",
+        "bottom-left",
+        "bottom-center",
+        "bottom-right"
+      ]
     },
     {
       "key": "background-image-fit",
       "category": "Appearance",
-      "kind": "string",
+      "kind": "enum",
       "description": "Background image fit.",
       "edit": "scalar",
       "default": "contain",
-      "docs": "https://ghostty.org/docs/config/reference#background-image-fit"
+      "docs": "https://ghostty.org/docs/config/reference#background-image-fit",
+      "values": [
+        "contain",
+        "cover",
+        "stretch",
+        "none"
+      ]
     },
     {
       "key": "background-image-repeat",
@@ -395,7 +444,7 @@
     {
       "key": "selection-foreground",
       "category": "Appearance",
-      "kind": "string",
+      "kind": "color",
       "description": "The foreground and background color for selection.",
       "edit": "scalar",
       "docs": "https://ghostty.org/docs/config/reference#selection-foreground"
@@ -403,7 +452,7 @@
     {
       "key": "selection-background",
       "category": "Appearance",
-      "kind": "string",
+      "kind": "color",
       "description": "Ghostty configuration option.",
       "edit": "scalar",
       "docs": "https://ghostty.org/docs/config/reference#selection-background"
@@ -442,7 +491,10 @@
       "description": "The minimum contrast ratio between the foreground and background colors.",
       "edit": "scalar",
       "default": "1",
-      "docs": "https://ghostty.org/docs/config/reference#minimum-contrast"
+      "docs": "https://ghostty.org/docs/config/reference#minimum-contrast",
+      "min": 1,
+      "max": 21,
+      "step": 0.1
     },
     {
       "key": "palette",
@@ -486,29 +538,42 @@
       "description": "The opacity level (opposite of transparency) of the cursor.",
       "edit": "scalar",
       "default": "1",
-      "docs": "https://ghostty.org/docs/config/reference#cursor-opacity"
+      "docs": "https://ghostty.org/docs/config/reference#cursor-opacity",
+      "min": 0,
+      "max": 1,
+      "step": 0.05
     },
     {
       "key": "cursor-style",
       "category": "Terminal",
-      "kind": "string",
+      "kind": "enum",
       "description": "The style of the cursor.",
       "edit": "scalar",
       "default": "block",
-      "docs": "https://ghostty.org/docs/config/reference#cursor-style"
+      "docs": "https://ghostty.org/docs/config/reference#cursor-style",
+      "values": [
+        "block",
+        "bar",
+        "underline",
+        "block_hollow"
+      ]
     },
     {
       "key": "cursor-style-blink",
       "category": "Terminal",
-      "kind": "string",
+      "kind": "enum",
       "description": "Sets the default blinking state of the cursor.",
       "edit": "scalar",
-      "docs": "https://ghostty.org/docs/config/reference#cursor-style-blink"
+      "docs": "https://ghostty.org/docs/config/reference#cursor-style-blink",
+      "values": [
+        "true",
+        "false"
+      ]
     },
     {
       "key": "cursor-text",
       "category": "Terminal",
-      "kind": "string",
+      "kind": "color",
       "description": "The color of the text under the cursor.",
       "edit": "scalar",
       "docs": "https://ghostty.org/docs/config/reference#cursor-text"
@@ -538,16 +603,27 @@
       "description": "When to scroll the surface to the bottom.",
       "edit": "scalar",
       "default": "keystroke,no-output",
-      "docs": "https://ghostty.org/docs/config/reference#scroll-to-bottom"
+      "docs": "https://ghostty.org/docs/config/reference#scroll-to-bottom",
+      "values": [
+        "keystroke",
+        "output"
+      ],
+      "multiple": true
     },
     {
       "key": "mouse-shift-capture",
       "category": "Input",
-      "kind": "boolean",
+      "kind": "enum",
       "description": "Determines whether running programs can detect the shift key pressed with a mouse click.",
       "edit": "scalar",
       "default": "false",
-      "docs": "https://ghostty.org/docs/config/reference#mouse-shift-capture"
+      "docs": "https://ghostty.org/docs/config/reference#mouse-shift-capture",
+      "values": [
+        "true",
+        "false",
+        "always",
+        "never"
+      ]
     },
     {
       "key": "mouse-reporting",
@@ -574,7 +650,10 @@
       "description": "The opacity level (opposite of transparency) of the background.",
       "edit": "scalar",
       "default": "1",
-      "docs": "https://ghostty.org/docs/config/reference#background-opacity"
+      "docs": "https://ghostty.org/docs/config/reference#background-opacity",
+      "min": 0,
+      "max": 1,
+      "step": 0.05
     },
     {
       "key": "background-opacity-cells",
@@ -601,12 +680,15 @@
       "description": "The opacity level (opposite of transparency) of an unfocused split.",
       "edit": "scalar",
       "default": "0.7",
-      "docs": "https://ghostty.org/docs/config/reference#unfocused-split-opacity"
+      "docs": "https://ghostty.org/docs/config/reference#unfocused-split-opacity",
+      "min": 0.15,
+      "max": 1,
+      "step": 0.05
     },
     {
       "key": "unfocused-split-fill",
       "category": "General",
-      "kind": "string",
+      "kind": "color",
       "description": "The color to dim the unfocused split.",
       "edit": "scalar",
       "docs": "https://ghostty.org/docs/config/reference#unfocused-split-fill"
@@ -622,16 +704,20 @@
     {
       "key": "split-preserve-zoom",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "Control when Ghostty preserves a zoomed split.",
       "edit": "scalar",
       "default": "no-navigation",
-      "docs": "https://ghostty.org/docs/config/reference#split-preserve-zoom"
+      "docs": "https://ghostty.org/docs/config/reference#split-preserve-zoom",
+      "values": [
+        "navigation",
+        "no-navigation"
+      ]
     },
     {
       "key": "search-foreground",
       "category": "General",
-      "kind": "string",
+      "kind": "color",
       "description": "The foreground and background color for search matches.",
       "edit": "scalar",
       "default": "#000000",
@@ -640,7 +726,7 @@
     {
       "key": "search-background",
       "category": "General",
-      "kind": "string",
+      "kind": "color",
       "description": "Ghostty configuration option.",
       "edit": "scalar",
       "default": "#ffe082",
@@ -649,7 +735,7 @@
     {
       "key": "search-selected-foreground",
       "category": "General",
-      "kind": "string",
+      "kind": "color",
       "description": "The foreground and background color for the currently selected search match.",
       "edit": "scalar",
       "default": "#000000",
@@ -658,7 +744,7 @@
     {
       "key": "search-selected-background",
       "category": "General",
-      "kind": "string",
+      "kind": "color",
       "description": "Ghostty configuration option.",
       "edit": "scalar",
       "default": "#f2a57e",
@@ -683,11 +769,16 @@
     {
       "key": "notify-on-command-finish",
       "category": "General",
-      "kind": "string",
+      "kind": "enum",
       "description": "Controls when command finished notifications are sent.",
       "edit": "scalar",
       "default": "never",
-      "docs": "https://ghostty.org/docs/config/reference#notify-on-command-finish"
+      "docs": "https://ghostty.org/docs/config/reference#notify-on-command-finish",
+      "values": [
+        "never",
+        "unfocused",
+        "always"
+      ]
     },
     {
       "key": "notify-on-command-finish-action",
@@ -696,12 +787,17 @@
       "description": "If command finished notifications are enabled, this controls how the user is notified.",
       "edit": "scalar",
       "default": "bell,no-notify",
-      "docs": "https://ghostty.org/docs/config/reference#notify-on-command-finish-action"
+      "docs": "https://ghostty.org/docs/config/reference#notify-on-command-finish-action",
+      "values": [
+        "bell",
+        "notify"
+      ],
+      "multiple": true
     },
     {
       "key": "notify-on-command-finish-after",
       "category": "General",
-      "kind": "string",
+      "kind": "duration",
       "description": "If command finished notifications are enabled, this controls how long a command must have been running before a notification will be sent.",
       "edit": "scalar",
       "default": "5s",
@@ -771,11 +867,15 @@
     {
       "key": "scrollbar",
       "category": "Terminal",
-      "kind": "string",
+      "kind": "enum",
       "description": "Control when the scrollbar is shown to scroll the scrollback buffer.",
       "edit": "scalar",
       "default": "system",
-      "docs": "https://ghostty.org/docs/config/reference#scrollbar"
+      "docs": "https://ghostty.org/docs/config/reference#scrollbar",
+      "values": [
+        "system",
+        "never"
+      ]
     },
     {
       "key": "link-url",
@@ -895,20 +995,30 @@
     {
       "key": "window-padding-balance",
       "category": "Window",
-      "kind": "boolean",
+      "kind": "enum",
       "description": "The viewport dimensions are usually not perfectly divisible by the cell size.",
       "edit": "scalar",
       "default": "false",
-      "docs": "https://ghostty.org/docs/config/reference#window-padding-balance"
+      "docs": "https://ghostty.org/docs/config/reference#window-padding-balance",
+      "values": [
+        "false",
+        "true",
+        "equal"
+      ]
     },
     {
       "key": "window-padding-color",
       "category": "Window",
-      "kind": "color",
+      "kind": "enum",
       "description": "The color of the padding area of the window.",
       "edit": "scalar",
       "default": "background",
-      "docs": "https://ghostty.org/docs/config/reference#window-padding-color"
+      "docs": "https://ghostty.org/docs/config/reference#window-padding-color",
+      "values": [
+        "background",
+        "extend",
+        "extend-always"
+      ]
     },
     {
       "key": "window-vsync",
@@ -958,11 +1068,19 @@
     {
       "key": "window-decoration",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "Configure a preference for window decorations.",
       "edit": "scalar",
       "default": "auto",
-      "docs": "https://ghostty.org/docs/config/reference#window-decoration"
+      "docs": "https://ghostty.org/docs/config/reference#window-decoration",
+      "values": [
+        "none",
+        "auto",
+        "client",
+        "server",
+        "true",
+        "false"
+      ]
     },
     {
       "key": "window-title-font-family",
@@ -975,19 +1093,23 @@
     {
       "key": "window-subtitle",
       "category": "Window",
-      "kind": "boolean",
+      "kind": "enum",
       "description": "The text that will be displayed in the subtitle of the window.",
       "edit": "scalar",
       "default": "false",
       "availability": [
         "GTK"
       ],
-      "docs": "https://ghostty.org/docs/config/reference#window-subtitle"
+      "docs": "https://ghostty.org/docs/config/reference#window-subtitle",
+      "values": [
+        "false",
+        "working-directory"
+      ]
     },
     {
       "key": "window-theme",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "The theme to use for the windows.",
       "edit": "scalar",
       "default": "auto",
@@ -995,19 +1117,30 @@
         "macOS",
         "Linux"
       ],
-      "docs": "https://ghostty.org/docs/config/reference#window-theme"
+      "docs": "https://ghostty.org/docs/config/reference#window-theme",
+      "values": [
+        "auto",
+        "system",
+        "light",
+        "dark",
+        "ghostty"
+      ]
     },
     {
       "key": "window-colorspace",
       "category": "Window",
-      "kind": "color",
+      "kind": "enum",
       "description": "The color space to use when interpreting terminal colors.",
       "edit": "scalar",
       "default": "srgb",
       "availability": [
         "macOS"
       ],
-      "docs": "https://ghostty.org/docs/config/reference#window-colorspace"
+      "docs": "https://ghostty.org/docs/config/reference#window-colorspace",
+      "values": [
+        "srgb",
+        "display-p3"
+      ]
     },
     {
       "key": "window-height",
@@ -1049,14 +1182,19 @@
     {
       "key": "window-save-state",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "Whether to enable saving and restoring window state.",
       "edit": "scalar",
       "default": "default",
       "availability": [
         "macOS"
       ],
-      "docs": "https://ghostty.org/docs/config/reference#window-save-state"
+      "docs": "https://ghostty.org/docs/config/reference#window-save-state",
+      "values": [
+        "default",
+        "never",
+        "always"
+      ]
     },
     {
       "key": "window-step-resize",
@@ -1073,28 +1211,37 @@
     {
       "key": "window-new-tab-position",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "The position where new tabs are created.",
       "edit": "scalar",
       "default": "current",
-      "docs": "https://ghostty.org/docs/config/reference#window-new-tab-position"
+      "docs": "https://ghostty.org/docs/config/reference#window-new-tab-position",
+      "values": [
+        "current",
+        "end"
+      ]
     },
     {
       "key": "window-show-tab-bar",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "Whether to show the tab bar.",
       "edit": "scalar",
       "default": "auto",
       "availability": [
         "Linux"
       ],
-      "docs": "https://ghostty.org/docs/config/reference#window-show-tab-bar"
+      "docs": "https://ghostty.org/docs/config/reference#window-show-tab-bar",
+      "values": [
+        "always",
+        "auto",
+        "never"
+      ]
     },
     {
       "key": "window-titlebar-background",
       "category": "Window",
-      "kind": "string",
+      "kind": "color",
       "description": "Background color for the window titlebar.",
       "edit": "scalar",
       "docs": "https://ghostty.org/docs/config/reference#window-titlebar-background"
@@ -1102,7 +1249,7 @@
     {
       "key": "window-titlebar-foreground",
       "category": "Window",
-      "kind": "string",
+      "kind": "color",
       "description": "Foreground color for the window titlebar.",
       "edit": "scalar",
       "docs": "https://ghostty.org/docs/config/reference#window-titlebar-foreground"
@@ -1110,29 +1257,48 @@
     {
       "key": "drag-handle",
       "category": "General",
-      "kind": "string",
+      "kind": "enum",
       "description": "Controls when drag handles are shown over splits, allowing splits to be rearranged with mouse controls.",
       "edit": "scalar",
       "default": "auto",
-      "docs": "https://ghostty.org/docs/config/reference#drag-handle"
+      "docs": "https://ghostty.org/docs/config/reference#drag-handle",
+      "values": [
+        "always",
+        "auto",
+        "never"
+      ]
     },
     {
       "key": "resize-overlay",
       "category": "General",
-      "kind": "string",
+      "kind": "enum",
       "description": "This controls when resize overlays are shown.",
       "edit": "scalar",
       "default": "after-first",
-      "docs": "https://ghostty.org/docs/config/reference#resize-overlay"
+      "docs": "https://ghostty.org/docs/config/reference#resize-overlay",
+      "values": [
+        "always",
+        "never",
+        "after-first"
+      ]
     },
     {
       "key": "resize-overlay-position",
       "category": "General",
-      "kind": "string",
+      "kind": "enum",
       "description": "If resize overlays are enabled, this controls the position of the overlay.",
       "edit": "scalar",
       "default": "center",
-      "docs": "https://ghostty.org/docs/config/reference#resize-overlay-position"
+      "docs": "https://ghostty.org/docs/config/reference#resize-overlay-position",
+      "values": [
+        "center",
+        "top-left",
+        "top-center",
+        "top-right",
+        "bottom-left",
+        "bottom-center",
+        "bottom-right"
+      ]
     },
     {
       "key": "resize-overlay-duration",
@@ -1155,20 +1321,30 @@
     {
       "key": "clipboard-read",
       "category": "Terminal",
-      "kind": "string",
+      "kind": "enum",
       "description": "Whether to allow programs running in the terminal to read/write to the system clipboard (OSC 52, for googling).",
       "edit": "scalar",
       "default": "ask",
-      "docs": "https://ghostty.org/docs/config/reference#clipboard-read"
+      "docs": "https://ghostty.org/docs/config/reference#clipboard-read",
+      "values": [
+        "ask",
+        "allow",
+        "deny"
+      ]
     },
     {
       "key": "clipboard-write",
       "category": "Terminal",
-      "kind": "string",
+      "kind": "enum",
       "description": "Ghostty configuration option.",
       "edit": "scalar",
       "default": "allow",
-      "docs": "https://ghostty.org/docs/config/reference#clipboard-write"
+      "docs": "https://ghostty.org/docs/config/reference#clipboard-write",
+      "values": [
+        "ask",
+        "allow",
+        "deny"
+      ]
     },
     {
       "key": "clipboard-write-limit-bytes",
@@ -1227,29 +1403,49 @@
     {
       "key": "copy-on-select",
       "category": "Input",
-      "kind": "string",
+      "kind": "enum",
       "description": "Whether to automatically copy selected text to the clipboard.",
       "edit": "scalar",
       "default": "none",
-      "docs": "https://ghostty.org/docs/config/reference#copy-on-select"
+      "docs": "https://ghostty.org/docs/config/reference#copy-on-select",
+      "values": [
+        "none",
+        "primary",
+        "clipboard",
+        "both",
+        "true",
+        "false"
+      ]
     },
     {
       "key": "right-click-action",
       "category": "General",
-      "kind": "string",
+      "kind": "enum",
       "description": "The action to take when the user right-clicks on the terminal surface.",
       "edit": "scalar",
       "default": "context-menu",
-      "docs": "https://ghostty.org/docs/config/reference#right-click-action"
+      "docs": "https://ghostty.org/docs/config/reference#right-click-action",
+      "values": [
+        "context-menu",
+        "paste",
+        "copy",
+        "copy-or-paste",
+        "ignore"
+      ]
     },
     {
       "key": "middle-click-action",
       "category": "General",
-      "kind": "string",
+      "kind": "enum",
       "description": "The action to take when the user middle-clicks on the terminal surface.",
       "edit": "scalar",
       "default": "primary-paste",
-      "docs": "https://ghostty.org/docs/config/reference#middle-click-action"
+      "docs": "https://ghostty.org/docs/config/reference#middle-click-action",
+      "values": [
+        "primary-paste",
+        "clipboard-paste",
+        "ignore"
+      ]
     },
     {
       "key": "click-repeat-interval",
@@ -1298,7 +1494,7 @@
     {
       "key": "quit-after-last-window-closed-delay",
       "category": "General",
-      "kind": "string",
+      "kind": "duration",
       "description": "Controls how long Ghostty will stay running after the last open surface has been closed.",
       "edit": "scalar",
       "docs": "https://ghostty.org/docs/config/reference#quit-after-last-window-closed-delay"
@@ -1327,20 +1523,33 @@
     {
       "key": "quick-terminal-position",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "The position of the \"quick\" terminal window.",
       "edit": "scalar",
       "default": "top",
-      "docs": "https://ghostty.org/docs/config/reference#quick-terminal-position"
+      "docs": "https://ghostty.org/docs/config/reference#quick-terminal-position",
+      "values": [
+        "top",
+        "bottom",
+        "left",
+        "right",
+        "center"
+      ]
     },
     {
       "key": "gtk-quick-terminal-layer",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "The layer of the quick terminal window.",
       "edit": "scalar",
       "default": "top",
-      "docs": "https://ghostty.org/docs/config/reference#gtk-quick-terminal-layer"
+      "docs": "https://ghostty.org/docs/config/reference#gtk-quick-terminal-layer",
+      "values": [
+        "overlay",
+        "top",
+        "bottom",
+        "background"
+      ]
     },
     {
       "key": "gtk-quick-terminal-namespace",
@@ -1354,11 +1563,16 @@
     {
       "key": "quick-terminal-screen",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "The screen where the quick terminal should show up.",
       "edit": "scalar",
       "default": "main",
-      "docs": "https://ghostty.org/docs/config/reference#quick-terminal-screen"
+      "docs": "https://ghostty.org/docs/config/reference#quick-terminal-screen",
+      "values": [
+        "main",
+        "mouse",
+        "macos-menu-bar"
+      ]
     },
     {
       "key": "quick-terminal-animation-duration",
@@ -1381,29 +1595,47 @@
     {
       "key": "quick-terminal-space-behavior",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "This configuration option determines the behavior of the quick terminal when switching between macOS spaces.",
       "edit": "scalar",
       "default": "move",
-      "docs": "https://ghostty.org/docs/config/reference#quick-terminal-space-behavior"
+      "docs": "https://ghostty.org/docs/config/reference#quick-terminal-space-behavior",
+      "values": [
+        "move",
+        "remain"
+      ]
     },
     {
       "key": "quick-terminal-keyboard-interactivity",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "Determines under which circumstances that the quick terminal should receive keyboard input.",
       "edit": "scalar",
       "default": "on-demand",
-      "docs": "https://ghostty.org/docs/config/reference#quick-terminal-keyboard-interactivity"
+      "docs": "https://ghostty.org/docs/config/reference#quick-terminal-keyboard-interactivity",
+      "values": [
+        "none",
+        "on-demand",
+        "exclusive"
+      ]
     },
     {
       "key": "shell-integration",
       "category": "Shell",
-      "kind": "string",
+      "kind": "enum",
       "description": "Whether to enable shell integration auto-injection or not.",
       "edit": "scalar",
       "default": "detect",
-      "docs": "https://ghostty.org/docs/config/reference#shell-integration"
+      "docs": "https://ghostty.org/docs/config/reference#shell-integration",
+      "values": [
+        "none",
+        "detect",
+        "bash",
+        "elvish",
+        "fish",
+        "nushell",
+        "zsh"
+      ]
     },
     {
       "key": "shell-integration-features",
@@ -1412,7 +1644,16 @@
       "description": "Shell integration features to enable.",
       "edit": "scalar",
       "default": "cursor,no-sudo,title,no-ssh-env,no-ssh-terminfo,path",
-      "docs": "https://ghostty.org/docs/config/reference#shell-integration-features"
+      "docs": "https://ghostty.org/docs/config/reference#shell-integration-features",
+      "values": [
+        "cursor",
+        "sudo",
+        "title",
+        "ssh-env",
+        "ssh-terminfo",
+        "path"
+      ],
+      "multiple": true
     },
     {
       "key": "command-palette-entry",
@@ -1426,11 +1667,16 @@
     {
       "key": "osc-color-report-format",
       "category": "General",
-      "kind": "color",
+      "kind": "enum",
       "description": "Sets the reporting format for OSC sequences that request color information.",
       "edit": "scalar",
       "default": "16-bit",
-      "docs": "https://ghostty.org/docs/config/reference#osc-color-report-format"
+      "docs": "https://ghostty.org/docs/config/reference#osc-color-report-format",
+      "values": [
+        "none",
+        "8-bit",
+        "16-bit"
+      ]
     },
     {
       "key": "vt-kam-allowed",
@@ -1465,7 +1711,15 @@
       "description": "Bell features to enable if bell support is available in your runtime.",
       "edit": "scalar",
       "default": "no-system,no-audio,attention,title,no-border",
-      "docs": "https://ghostty.org/docs/config/reference#bell-features"
+      "docs": "https://ghostty.org/docs/config/reference#bell-features",
+      "values": [
+        "system",
+        "audio",
+        "attention",
+        "title",
+        "border"
+      ],
+      "multiple": true
     },
     {
       "key": "bell-audio-path",
@@ -1482,7 +1736,10 @@
       "description": "If `audio` is an enabled bell feature, this is the volume to play the audio file at (relative to the system volume).",
       "edit": "scalar",
       "default": "0.5",
-      "docs": "https://ghostty.org/docs/config/reference#bell-audio-volume"
+      "docs": "https://ghostty.org/docs/config/reference#bell-audio-volume",
+      "min": 0,
+      "max": 1,
+      "step": 0.05
     },
     {
       "key": "app-notifications",
@@ -1491,63 +1748,98 @@
       "description": "Control the in-app notifications that Ghostty shows.",
       "edit": "scalar",
       "default": "clipboard-copy,config-reload",
-      "docs": "https://ghostty.org/docs/config/reference#app-notifications"
+      "docs": "https://ghostty.org/docs/config/reference#app-notifications",
+      "values": [
+        "clipboard-copy",
+        "config-reload"
+      ],
+      "multiple": true
     },
     {
       "key": "macos-non-native-fullscreen",
       "category": "Window",
-      "kind": "boolean",
+      "kind": "enum",
       "description": "If anything other than false, fullscreen mode on macOS will not use the native fullscreen, but make the window fullscreen without animations and using a new space.",
       "edit": "scalar",
       "default": "false",
-      "docs": "https://ghostty.org/docs/config/reference#macos-non-native-fullscreen"
+      "docs": "https://ghostty.org/docs/config/reference#macos-non-native-fullscreen",
+      "values": [
+        "true",
+        "false",
+        "visible-menu",
+        "padded-notch"
+      ]
     },
     {
       "key": "macos-window-buttons",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "Whether the window buttons in the macOS titlebar are visible.",
       "edit": "scalar",
       "default": "visible",
-      "docs": "https://ghostty.org/docs/config/reference#macos-window-buttons"
+      "docs": "https://ghostty.org/docs/config/reference#macos-window-buttons",
+      "values": [
+        "visible",
+        "hidden"
+      ]
     },
     {
       "key": "macos-titlebar-style",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "The style of the macOS titlebar.",
       "edit": "scalar",
       "default": "transparent",
-      "docs": "https://ghostty.org/docs/config/reference#macos-titlebar-style"
+      "docs": "https://ghostty.org/docs/config/reference#macos-titlebar-style",
+      "values": [
+        "native",
+        "transparent",
+        "tabs",
+        "hidden"
+      ]
     },
     {
       "key": "macos-titlebar-proxy-icon",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "Whether the proxy icon in the macOS titlebar is visible.",
       "edit": "scalar",
       "default": "visible",
-      "docs": "https://ghostty.org/docs/config/reference#macos-titlebar-proxy-icon"
+      "docs": "https://ghostty.org/docs/config/reference#macos-titlebar-proxy-icon",
+      "values": [
+        "visible",
+        "hidden"
+      ]
     },
     {
       "key": "macos-dock-drop-behavior",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "Controls the windowing behavior when dropping a file or folder onto the Ghostty icon in the macOS dock.",
       "edit": "scalar",
       "default": "new-tab",
       "availability": [
         "macOS"
       ],
-      "docs": "https://ghostty.org/docs/config/reference#macos-dock-drop-behavior"
+      "docs": "https://ghostty.org/docs/config/reference#macos-dock-drop-behavior",
+      "values": [
+        "new-tab",
+        "new-window"
+      ]
     },
     {
       "key": "macos-option-as-alt",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "macOS doesn't have a distinct \"alt\" key and instead has the \"option\" key which behaves slightly differently.",
       "edit": "scalar",
-      "docs": "https://ghostty.org/docs/config/reference#macos-option-as-alt"
+      "docs": "https://ghostty.org/docs/config/reference#macos-option-as-alt",
+      "values": [
+        "true",
+        "false",
+        "left",
+        "right"
+      ]
     },
     {
       "key": "macos-window-shadow",
@@ -1561,11 +1853,15 @@
     {
       "key": "macos-hidden",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "If true, the macOS icon in the dock and app switcher will be hidden.",
       "edit": "scalar",
       "default": "never",
-      "docs": "https://ghostty.org/docs/config/reference#macos-hidden"
+      "docs": "https://ghostty.org/docs/config/reference#macos-hidden",
+      "values": [
+        "never",
+        "always"
+      ]
     },
     {
       "key": "macos-auto-secure-input",
@@ -1597,16 +1893,29 @@
     {
       "key": "macos-icon",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "Customize the macOS app icon.",
       "edit": "scalar",
       "default": "official",
-      "docs": "https://ghostty.org/docs/config/reference#macos-icon"
+      "docs": "https://ghostty.org/docs/config/reference#macos-icon",
+      "values": [
+        "official",
+        "blueprint",
+        "chalkboard",
+        "microchip",
+        "glass",
+        "holographic",
+        "paper",
+        "retro",
+        "xray",
+        "custom",
+        "custom-style"
+      ]
     },
     {
       "key": "macos-custom-icon",
       "category": "Window",
-      "kind": "string",
+      "kind": "path",
       "description": "The absolute path to the custom icon file.",
       "edit": "scalar",
       "docs": "https://ghostty.org/docs/config/reference#macos-custom-icon"
@@ -1614,11 +1923,17 @@
     {
       "key": "macos-icon-frame",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "The material to use for the frame of the macOS app icon.",
       "edit": "scalar",
       "default": "aluminum",
-      "docs": "https://ghostty.org/docs/config/reference#macos-icon-frame"
+      "docs": "https://ghostty.org/docs/config/reference#macos-icon-frame",
+      "values": [
+        "aluminum",
+        "beige",
+        "plastic",
+        "chrome"
+      ]
     },
     {
       "key": "macos-icon-ghost-color",
@@ -1639,20 +1954,30 @@
     {
       "key": "macos-shortcuts",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "Whether macOS Shortcuts are allowed to control Ghostty.",
       "edit": "scalar",
       "default": "ask",
-      "docs": "https://ghostty.org/docs/config/reference#macos-shortcuts"
+      "docs": "https://ghostty.org/docs/config/reference#macos-shortcuts",
+      "values": [
+        "ask",
+        "allow",
+        "deny"
+      ]
     },
     {
       "key": "linux-cgroup",
       "category": "General",
-      "kind": "string",
+      "kind": "enum",
       "description": "Put every surface (tab, split, window) into a transient `systemd` scope.",
       "edit": "scalar",
       "default": "never",
-      "docs": "https://ghostty.org/docs/config/reference#linux-cgroup"
+      "docs": "https://ghostty.org/docs/config/reference#linux-cgroup",
+      "values": [
+        "never",
+        "always",
+        "single-instance"
+      ]
     },
     {
       "key": "linux-cgroup-memory-limit",
@@ -1691,11 +2016,17 @@
     {
       "key": "gtk-single-instance",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "If `true`, the Ghostty GTK application will run in single-instance mode: each new `ghostty` process launched will result in a new window if there is already a running process.",
       "edit": "scalar",
       "default": "detect",
-      "docs": "https://ghostty.org/docs/config/reference#gtk-single-instance"
+      "docs": "https://ghostty.org/docs/config/reference#gtk-single-instance",
+      "values": [
+        "detect",
+        "true",
+        "false",
+        "desktop"
+      ]
     },
     {
       "key": "gtk-titlebar",
@@ -1709,11 +2040,16 @@
     {
       "key": "gtk-tabs-location",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "Determines the side of the screen that the GTK tab bar will stick to.",
       "edit": "scalar",
       "default": "top",
-      "docs": "https://ghostty.org/docs/config/reference#gtk-tabs-location"
+      "docs": "https://ghostty.org/docs/config/reference#gtk-tabs-location",
+      "values": [
+        "top",
+        "bottom",
+        "hidden"
+      ]
     },
     {
       "key": "gtk-titlebar-hide-when-maximized",
@@ -1730,20 +2066,29 @@
     {
       "key": "gtk-toolbar-style",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "Determines the appearance of the top and bottom bars tab bar.",
       "edit": "scalar",
       "default": "raised",
-      "docs": "https://ghostty.org/docs/config/reference#gtk-toolbar-style"
+      "docs": "https://ghostty.org/docs/config/reference#gtk-toolbar-style",
+      "values": [
+        "flat",
+        "raised",
+        "raised-border"
+      ]
     },
     {
       "key": "gtk-titlebar-style",
       "category": "Window",
-      "kind": "string",
+      "kind": "enum",
       "description": "The style of the GTK titlebar.",
       "edit": "scalar",
       "default": "native",
-      "docs": "https://ghostty.org/docs/config/reference#gtk-titlebar-style"
+      "docs": "https://ghostty.org/docs/config/reference#gtk-titlebar-style",
+      "values": [
+        "native",
+        "tabs"
+      ]
     },
     {
       "key": "gtk-wide-tabs",
@@ -1804,7 +2149,10 @@
       "description": "The opacity level (opposite of transparency) of the faint text.",
       "edit": "scalar",
       "default": "0.5",
-      "docs": "https://ghostty.org/docs/config/reference#faint-opacity"
+      "docs": "https://ghostty.org/docs/config/reference#faint-opacity",
+      "min": 0,
+      "max": 1,
+      "step": 0.05
     },
     {
       "key": "term",
@@ -1826,33 +2174,47 @@
     {
       "key": "async-backend",
       "category": "General",
-      "kind": "string",
+      "kind": "enum",
       "description": "Configures the low-level API to use for async IO, eventing, etc.",
       "edit": "scalar",
       "default": "auto",
       "availability": [
         "Linux"
       ],
-      "docs": "https://ghostty.org/docs/config/reference#async-backend"
+      "docs": "https://ghostty.org/docs/config/reference#async-backend",
+      "values": [
+        "auto",
+        "epoll",
+        "io_uring"
+      ]
     },
     {
       "key": "auto-update",
       "category": "General",
-      "kind": "string",
+      "kind": "enum",
       "description": "Control the auto-update functionality of Ghostty.",
       "edit": "scalar",
       "availability": [
         "macOS"
       ],
-      "docs": "https://ghostty.org/docs/config/reference#auto-update"
+      "docs": "https://ghostty.org/docs/config/reference#auto-update",
+      "values": [
+        "off",
+        "check",
+        "download"
+      ]
     },
     {
       "key": "auto-update-channel",
       "category": "General",
-      "kind": "string",
+      "kind": "enum",
       "description": "The release channel to use for auto-updates.",
       "edit": "scalar",
-      "docs": "https://ghostty.org/docs/config/reference#auto-update-channel"
+      "docs": "https://ghostty.org/docs/config/reference#auto-update-channel",
+      "values": [
+        "stable",
+        "tip"
+      ]
     }
   ]
 }

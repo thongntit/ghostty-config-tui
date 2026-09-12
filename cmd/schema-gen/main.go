@@ -136,6 +136,7 @@ func catalogFromDocs(docs []byte, ghosttyVersion string) (schema.Catalog, error)
 				Availability: availabilityFor(context),
 				Docs:         "https://ghostty.org/docs/config/reference#" + node.Key,
 			}
+			applyReviewedMetadata(&option)
 			if node.Key == "font-size" {
 				step := 0.5
 				option.Step = &step
@@ -213,13 +214,13 @@ func kindFor(key, defaultValue, context string) schema.ValueKind {
 	if key == "command" || key == "initial-command" {
 		return schema.KindCommand
 	}
-	if strings.Contains(key, "path") || strings.HasSuffix(key, "-file") || key == "working-directory" {
+	if pathKey(key) {
 		return schema.KindPath
 	}
-	if strings.Contains(key, "duration") || strings.Contains(key, "interval") || strings.Contains(key, "timeout") {
+	if durationKey(key) {
 		return schema.KindDuration
 	}
-	if strings.Contains(key, "color") || key == "background" || key == "foreground" {
+	if colorKey(key) {
 		return schema.KindColor
 	}
 	if defaultValue == "true" || defaultValue == "false" {
@@ -229,6 +230,121 @@ func kindFor(key, defaultValue, context string) schema.ValueKind {
 		return schema.KindNumber
 	}
 	return schema.KindString
+}
+
+func durationKey(key string) bool {
+	return strings.Contains(key, "duration") || strings.Contains(key, "interval") || strings.Contains(key, "timeout") || key == "notify-on-command-finish-after" || key == "quit-after-last-window-closed-delay"
+}
+
+func pathKey(key string) bool {
+	return strings.Contains(key, "path") || strings.HasSuffix(key, "-file") || key == "working-directory" || key == "background-image" || key == "macos-custom-icon"
+}
+
+func colorKey(key string) bool {
+	switch key {
+	case "background", "foreground", "selection-foreground", "selection-background", "cursor-text",
+		"search-foreground", "search-background", "search-selected-foreground", "search-selected-background",
+		"unfocused-split-fill", "window-titlebar-background", "window-titlebar-foreground":
+		return true
+	default:
+		return strings.Contains(key, "color")
+	}
+}
+
+// These values are deliberately maintained as reviewed metadata instead of
+// being inferred from option names. Ghostty's docs are the source of truth for
+// the option catalog, but the docs contain prose and examples that are not a
+// lossless machine-readable enum format.
+var reviewedEnumValues = map[string][]string{
+	"alpha-blending":                        {"native", "linear", "linear-corrected"},
+	"async-backend":                         {"auto", "epoll", "io_uring"},
+	"auto-update":                           {"off", "check", "download"},
+	"auto-update-channel":                   {"stable", "tip"},
+	"background-image-fit":                  {"contain", "cover", "stretch", "none"},
+	"background-image-position":             {"top-left", "top-center", "top-right", "center-left", "center", "center-right", "bottom-left", "bottom-center", "bottom-right"},
+	"clipboard-read":                        {"ask", "allow", "deny"},
+	"clipboard-write":                       {"ask", "allow", "deny"},
+	"copy-on-select":                        {"none", "primary", "clipboard", "both", "true", "false"},
+	"cursor-style":                          {"block", "bar", "underline", "block_hollow"},
+	"cursor-style-blink":                    {"true", "false"},
+	"drag-handle":                           {"always", "auto", "never"},
+	"grapheme-width-method":                 {"legacy", "unicode"},
+	"gtk-quick-terminal-layer":              {"overlay", "top", "bottom", "background"},
+	"gtk-single-instance":                   {"detect", "true", "false", "desktop"},
+	"gtk-tabs-location":                     {"top", "bottom", "hidden"},
+	"gtk-titlebar-style":                    {"native", "tabs"},
+	"gtk-toolbar-style":                     {"flat", "raised", "raised-border"},
+	"linux-cgroup":                          {"never", "always", "single-instance"},
+	"macos-dock-drop-behavior":              {"new-tab", "new-window"},
+	"macos-hidden":                          {"never", "always"},
+	"macos-icon":                            {"official", "blueprint", "chalkboard", "microchip", "glass", "holographic", "paper", "retro", "xray", "custom", "custom-style"},
+	"macos-icon-frame":                      {"aluminum", "beige", "plastic", "chrome"},
+	"macos-non-native-fullscreen":           {"true", "false", "visible-menu", "padded-notch"},
+	"macos-option-as-alt":                   {"true", "false", "left", "right"},
+	"macos-shortcuts":                       {"ask", "allow", "deny"},
+	"macos-titlebar-proxy-icon":             {"visible", "hidden"},
+	"macos-titlebar-style":                  {"native", "transparent", "tabs", "hidden"},
+	"macos-window-buttons":                  {"visible", "hidden"},
+	"middle-click-action":                   {"primary-paste", "clipboard-paste", "ignore"},
+	"mouse-shift-capture":                   {"true", "false", "always", "never"},
+	"notify-on-command-finish":              {"never", "unfocused", "always"},
+	"osc-color-report-format":               {"none", "8-bit", "16-bit"},
+	"quick-terminal-keyboard-interactivity": {"none", "on-demand", "exclusive"},
+	"quick-terminal-position":               {"top", "bottom", "left", "right", "center"},
+	"quick-terminal-screen":                 {"main", "mouse", "macos-menu-bar"},
+	"quick-terminal-space-behavior":         {"move", "remain"},
+	"resize-overlay":                        {"always", "never", "after-first"},
+	"resize-overlay-position":               {"center", "top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"},
+	"right-click-action":                    {"context-menu", "paste", "copy", "copy-or-paste", "ignore"},
+	"scrollbar":                             {"system", "never"},
+	"shell-integration":                     {"none", "detect", "bash", "elvish", "fish", "nushell", "zsh"},
+	"split-preserve-zoom":                   {"navigation", "no-navigation"},
+	"window-colorspace":                     {"srgb", "display-p3"},
+	"window-decoration":                     {"none", "auto", "client", "server", "true", "false"},
+	"window-new-tab-position":               {"current", "end"},
+	"window-padding-balance":                {"false", "true", "equal"},
+	"window-padding-color":                  {"background", "extend", "extend-always"},
+	"window-save-state":                     {"default", "never", "always"},
+	"window-show-tab-bar":                   {"always", "auto", "never"},
+	"window-subtitle":                       {"false", "working-directory"},
+	"window-theme":                          {"auto", "system", "light", "dark", "ghostty"},
+}
+
+var reviewedMultipleValues = map[string][]string{
+	"app-notifications":               {"clipboard-copy", "config-reload"},
+	"bell-features":                   {"system", "audio", "attention", "title", "border"},
+	"font-shaping-break":              {"cursor"},
+	"font-synthetic-style":            {"bold", "italic", "bold-italic"},
+	"freetype-load-flags":             {"hinting", "force-autohint", "monochrome", "autohint", "light"},
+	"notify-on-command-finish-action": {"bell", "notify"},
+	"scroll-to-bottom":                {"keystroke", "output"},
+	"shell-integration-features":      {"cursor", "sudo", "title", "ssh-env", "ssh-terminfo", "path"},
+}
+
+func applyReviewedMetadata(option *schema.Option) {
+	if values, ok := reviewedEnumValues[option.Key]; ok {
+		option.Kind = schema.KindEnum
+		option.Values = append([]string(nil), values...)
+	}
+	if values, ok := reviewedMultipleValues[option.Key]; ok {
+		option.Kind = schema.KindString
+		option.Multiple = true
+		option.Values = append([]string(nil), values...)
+	}
+	switch option.Key {
+	case "font-thicken-strength":
+		min, max := 0.0, 255.0
+		option.Min, option.Max = &min, &max
+	case "minimum-contrast":
+		min, max, step := 1.0, 21.0, 0.1
+		option.Min, option.Max, option.Step = &min, &max, &step
+	case "background-image-opacity", "background-opacity", "cursor-opacity", "bell-audio-volume", "faint-opacity":
+		min, max, step := 0.0, 1.0, 0.05
+		option.Min, option.Max, option.Step = &min, &max, &step
+	case "unfocused-split-opacity":
+		min, max, step := 0.15, 1.0, 0.05
+		option.Min, option.Max, option.Step = &min, &max, &step
+	}
 }
 
 func editFor(key, defaultValue, context string) schema.EditMode {

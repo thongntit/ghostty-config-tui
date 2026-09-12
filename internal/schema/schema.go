@@ -52,6 +52,7 @@ type Option struct {
 	Availability []string  `json:"availability,omitempty"`
 	Docs         string    `json:"docs,omitempty"`
 	Values       []string  `json:"values,omitempty"`
+	Multiple     bool      `json:"multiple,omitempty"`
 	Min          *float64  `json:"min,omitempty"`
 	Max          *float64  `json:"max,omitempty"`
 	Step         *float64  `json:"step,omitempty"`
@@ -102,6 +103,9 @@ func (o Option) Validate(value string) error {
 		return fmt.Errorf("value must not contain a line break or NUL")
 	}
 
+	if o.Multiple {
+		return validateMultiple(value, o.Values)
+	}
 	if len(o.Values) > 0 {
 		for _, allowed := range o.Values {
 			if value == allowed {
@@ -139,6 +143,31 @@ func (o Option) Validate(value string) error {
 	case KindDuration:
 		if !validDuration(trimmed) {
 			return fmt.Errorf("value must be a non-negative duration such as 250ms or 1s 200ms")
+		}
+	}
+	return nil
+}
+
+func validateMultiple(value string, allowed []string) error {
+	values := strings.Split(value, ",")
+	for _, raw := range values {
+		candidate := strings.TrimSpace(raw)
+		if candidate == "" {
+			return fmt.Errorf("list values must not contain an empty item")
+		}
+		if candidate == "true" || candidate == "false" {
+			continue
+		}
+		base := strings.TrimPrefix(candidate, "no-")
+		found := false
+		for _, allowedValue := range allowed {
+			if base == allowedValue {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("value %q must be one of: %s (optionally prefixed with no-)", candidate, strings.Join(allowed, ", "))
 		}
 	}
 	return nil

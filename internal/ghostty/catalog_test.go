@@ -24,3 +24,29 @@ func TestParseColorListKeepsNamesWithSpaces(t *testing.T) {
 		t.Fatalf("first color = %+v", got[0])
 	}
 }
+
+func TestParseFontListKeepsFamiliesAndSkipsFaces(t *testing.T) {
+	got := parseFontList([]byte("Andale Mono\n  Andale Mono\n\nMenlo\n\tMenlo Bold\nMenlo\nerror: SentryInitFailed\n"))
+	want := []string{"Andale Mono", "Menlo"}
+	if len(got) != len(want) {
+		t.Fatalf("font count = %d, want %d: %v", len(got), len(want), got)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Errorf("font %d = %q, want %q", index, got[index], want[index])
+		}
+	}
+}
+
+func TestParseActionListSkipsDiagnosticsAndDeduplicates(t *testing.T) {
+	got := parseActionList([]byte("error: SentryInitFailed\nnew_window\ncopy_to_clipboard\nnew_window\n\n"))
+	want := []string{"new_window", "copy_to_clipboard"}
+	if len(got) != len(want) {
+		t.Fatalf("action count = %d, want %d: %v", len(got), len(want), got)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Errorf("action %d = %q, want %q", index, got[index], want[index])
+		}
+	}
+}

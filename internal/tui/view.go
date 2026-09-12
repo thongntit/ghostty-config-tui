@@ -139,6 +139,15 @@ func (m Model) renderEdit() string {
 	if m.repeatableMode {
 		return m.renderRepeatableEdit(option)
 	}
+	if m.multiMode {
+		return m.renderMultiEdit(option)
+	}
+	if m.durationMode {
+		return m.renderDurationEdit(option)
+	}
+	if m.pathMode {
+		return m.renderPathEdit(option)
+	}
 	if m.choiceMode != choiceNone {
 		return m.renderChoiceEdit(option)
 	}
@@ -166,6 +175,15 @@ func (m Model) renderEdit() string {
 }
 
 func (m Model) renderRepeatableEdit(option schema.Option) string {
+	if m.choiceMode != choiceNone {
+		return m.renderChoiceEdit(option)
+	}
+	if m.pathMode {
+		return m.renderPathEdit(option)
+	}
+	if m.repeatableForm != repeatableFormNone {
+		return m.renderRepeatableForm(option)
+	}
 	rows := []string{
 		accentStyle.Render("Edit " + friendlyOptionName(option.Key)),
 		mutedStyle.Render(option.Key),
@@ -218,6 +236,14 @@ func (m Model) renderRepeatableEdit(option schema.Option) string {
 
 func (m Model) renderChoiceEdit(option schema.Option) string {
 	title := "Choose " + friendlyOptionName(option.Key)
+	switch m.choiceMode {
+	case choiceFont:
+		title = "Choose font family"
+	case choiceAction:
+		title = "Choose action"
+	case choiceEnum:
+		title = "Choose " + friendlyOptionName(option.Key)
+	}
 	rows := []string{
 		accentStyle.Render(title),
 		mutedStyle.Render(option.Key),
@@ -292,6 +318,15 @@ func (m Model) footer() string {
 	switch m.mode {
 	case ModeEdit:
 		if m.repeatableMode {
+			if m.repeatableForm != repeatableFormNone {
+				return mutedStyle.Render("tab/enter next field · ctrl+r raw value · esc back to list")
+			}
+			if m.pathMode {
+				return mutedStyle.Render("↑/↓ browse · enter open/select · s select folder · ctrl+r raw path · esc back")
+			}
+			if m.choiceMode != choiceNone {
+				return mutedStyle.Render("↑/↓ choose · type to filter · enter select · ctrl+r raw · esc back to list")
+			}
 			if m.repeatableEditing {
 				return mutedStyle.Render("enter update · esc back to list")
 			}
@@ -299,6 +334,15 @@ func (m Model) footer() string {
 		}
 		if m.choiceMode != choiceNone {
 			return mutedStyle.Render("↑/↓ choose · type to filter · enter select · ctrl+r raw · esc cancel")
+		}
+		if m.multiMode {
+			return mutedStyle.Render("↑/↓ select item · ←/→/space cycle · ctrl+r raw list · enter stage · esc cancel")
+		}
+		if m.durationMode {
+			return mutedStyle.Render("←/→ unit · ↑/↓ amount · ctrl+r raw duration · enter stage · esc cancel")
+		}
+		if m.pathMode {
+			return mutedStyle.Render("↑/↓ browse · enter open/select · s select folder · ctrl+r raw path · esc cancel")
 		}
 		if m.numberMode {
 			option, ok := m.selectedOption()

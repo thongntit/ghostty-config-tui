@@ -54,10 +54,15 @@ Browse with `↑`/`k` and `↓`/`j`. Press `enter` or `e` to edit any catalog op
 and `ctrl+s` to save. Press `q`, then `y`, to save and quit; `d` discards the
 staged changes and quits.
 
-Scalar options use typed validation, boolean toggles, numeric steppers, and
-friendly theme/color choosers where an inventory is available. Repeatable
-options such as `font-family`, `palette`, `env`, `keybind`, and `config-file`
-open a list editor where each occurrence can be added, changed, or removed.
+Scalar options use typed validation, boolean toggles, numeric steppers,
+documented enum pickers, multi-select lists, duration/unit pickers, path
+browsers, and friendly theme/color/font choosers where an inventory is
+available. Repeatable options such as `font-family`, `palette`, `env`,
+`keybind`, and `config-file` open a list editor where each occurrence can be
+added, changed, or removed. Pair settings use forms for keys and values;
+keybindings and command-palette entries expose trigger/action fields. Press
+`ctrl+r` inside any friendly control when you need the raw Ghostty value for a
+custom or version-specific case.
 For duplicate scalar assignments, the editor targets the effective source
 line and displays its file and line number. New values are added to the
 selected root when no source assignment exists.

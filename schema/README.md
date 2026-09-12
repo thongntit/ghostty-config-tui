@@ -12,9 +12,11 @@ round trip even when they are not present in this schema.
 copied into `internal/schema/options.json`, where it is embedded into release
 builds. Every generated option is exposed to the editor: scalar options use
 typed validation plus a raw-value input, while repeatable and keybinding
-options use an occurrence list editor. Friendly controls are layered on top
-when the catalog has enough metadata or Ghostty can provide an inventory;
-unknown keys remain editable as raw one-line values.
+options use an occurrence list editor. Reviewed enum and multi-value metadata
+drives pickers; Ghostty inventories drive fonts and actions; structured forms
+cover pairs, keybindings, and command-palette entries. Friendly controls are
+layered on top when the catalog has enough metadata or Ghostty can provide an
+inventory; unknown keys remain editable as raw one-line values.
 
 Regenerate both catalog copies on a machine with Ghostty installed:
 

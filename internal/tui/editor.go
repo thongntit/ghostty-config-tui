@@ -12,7 +12,11 @@ import (
 
 func valueHint(option schema.Option) string {
 	if len(option.Values) > 0 {
-		return strings.Join(option.Values, " | ")
+		separator := " | "
+		if option.Multiple {
+			separator = ", "
+		}
+		return strings.Join(option.Values, separator)
 	}
 	switch option.Kind {
 	case schema.KindBoolean:
@@ -25,6 +29,8 @@ func valueHint(option schema.Option) string {
 		return "path"
 	case schema.KindDuration:
 		return "0, 250ms, or 1s 200ms"
+	case schema.KindEnum:
+		return "choose one"
 	default:
 		return "enter a value"
 	}
@@ -42,6 +48,8 @@ func defaultColorChoices() []ColorChoice {
 		{Name: "Blue", Value: "#89b4fa"},
 		{Name: "Purple", Value: "#cba6f7"},
 		{Name: "Ghostty dark", Value: "#282c34"},
+		{Name: "cell-foreground", Value: "cell-foreground"},
+		{Name: "cell-background", Value: "cell-background"},
 	}
 }
 
@@ -82,12 +90,22 @@ func numberStepLabel(option schema.Option) string {
 
 func (m Model) editorLabel(option schema.Option) string {
 	switch {
+	case option.Multiple:
+		return "multi-select list"
 	case option.Key == "theme" && len(m.themeChoices) > 0:
 		return "theme chooser"
 	case option.Kind == schema.KindColor && option.Key != "palette" && len(m.colorChoices) > 0:
 		return "color chooser"
+	case isFontOption(option.Key) && len(m.fontChoices) > 0:
+		return "font chooser"
+	case option.Kind == schema.KindEnum && len(option.Values) > 0:
+		return "enum chooser"
 	case option.Kind == schema.KindNumber:
 		return "numeric stepper"
+	case option.Kind == schema.KindDuration:
+		return "duration picker"
+	case option.Kind == schema.KindPath:
+		return "path browser"
 	case option.Kind == schema.KindBoolean:
 		return "on/off toggle"
 	case option.Kind == schema.KindKeybind:

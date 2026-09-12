@@ -33,6 +33,18 @@ const (
 	choiceNone choiceMode = iota
 	choiceTheme
 	choiceColor
+	choiceEnum
+	choiceFont
+	choiceAction
+)
+
+type repeatableFormMode uint8
+
+const (
+	repeatableFormNone repeatableFormMode = iota
+	repeatableFormPair
+	repeatableFormKeybind
+	repeatableFormCommandPalette
 )
 
 // ColorChoice is a named Ghostty/X11 color and its canonical RGB value.
@@ -93,13 +105,31 @@ type Model struct {
 	search     textinput.Model
 	searching  bool
 
-	themeChoices []string
-	colorChoices []ColorChoice
-	choiceQuery  textinput.Model
-	choiceMode   choiceMode
-	choiceMatch  []int
-	choiceIndex  int
-	numberMode   bool
+	themeChoices     []string
+	colorChoices     []ColorChoice
+	fontChoices      []string
+	actionChoices    []string
+	choiceQuery      textinput.Model
+	choiceMode       choiceMode
+	choiceValues     []string
+	choiceMatch      []int
+	choiceIndex      int
+	numberMode       bool
+	durationMode     bool
+	durationOriginal string
+	durationUnit     int
+	durationUnits    []string
+	multiMode        bool
+	multiChoices     []string
+	multiStates      []uint8
+	multiIndex       int
+	pathMode         bool
+	pathRepeatable   bool
+	pathDirectory    bool
+	pathOriginal     string
+	pathDir          string
+	pathEntries      []pathEntry
+	pathIndex        int
 
 	// original/draft are retained for the simple NewModel API. Graph models
 	// use fileOriginals/fileDrafts and currentDraftValue instead.
@@ -117,6 +147,17 @@ type Model struct {
 	repeatableIndex        int
 	repeatableEditing      bool
 	repeatableEditExisting bool
+	repeatableChoice       bool
+	repeatableForm         repeatableFormMode
+	formField              int
+	formLeft               string
+	formRight              string
+	formDescription        string
+	formAction             string
+	formTrigger            string
+	formArgs               string
+	pairColorChoice        bool
+	formActionChoice       bool
 
 	saveFunc SaveFunc
 
@@ -158,6 +199,8 @@ func NewModel(options []schema.Option, configPath string, original configdoc.Doc
 		colorChoices:    defaultColorChoices(),
 		choiceQuery:     choiceQuery,
 		choiceIndex:     -1,
+		durationUnits:   durationUnits(),
+		multiIndex:      -1,
 		repeatableIndex: -1,
 	}
 }
@@ -210,6 +253,30 @@ func (m *Model) SetColorChoices(choices []ColorChoice) {
 		return
 	}
 	m.colorChoices = append([]ColorChoice(nil), choices...)
+	for _, special := range []ColorChoice{{Name: "cell-foreground", Value: "cell-foreground"}, {Name: "cell-background", Value: "cell-background"}} {
+		found := false
+		for _, choice := range m.colorChoices {
+			if choice.Value == special.Value {
+				found = true
+				break
+			}
+		}
+		if !found {
+			m.colorChoices = append(m.colorChoices, special)
+		}
+	}
+}
+
+// SetFontChoices installs the font families reported by Ghostty. A missing
+// provider simply leaves font fields on their raw fallback editor.
+func (m *Model) SetFontChoices(choices []string) {
+	m.fontChoices = append([]string(nil), choices...)
+}
+
+// SetActionChoices installs Ghostty's action inventory for keybind and command
+// palette forms. The TUI has a small fallback list when this is unavailable.
+func (m *Model) SetActionChoices(choices []string) {
+	m.actionChoices = append([]string(nil), choices...)
 }
 
 func (m Model) Init() tea.Cmd {
@@ -347,6 +414,15 @@ func (m Model) updateEdit(msg tea.Msg) (Model, tea.Cmd) {
 	if keyPressed && key.Matches(keyMsg, defaultKeyMap.Escape) {
 		return m, m.cancelEdit()
 	}
+	if m.multiMode {
+		return m.updateMultiEdit(msg)
+	}
+	if m.durationMode {
+		return m.updateDurationEdit(msg)
+	}
+	if m.pathMode {
+		return m.updatePathEdit(msg)
+	}
 	if m.choiceMode != choiceNone {
 		return m.updateChoiceEdit(msg)
 	}
@@ -397,6 +473,15 @@ func (m Model) updateRepeatableEdit(msg tea.Msg) (Model, tea.Cmd) {
 	if keyMsg.String() == "ctrl+c" {
 		return m, m.requestQuit()
 	}
+	if m.choiceMode != choiceNone {
+		return m.updateChoiceEdit(msg)
+	}
+	if m.pathMode {
+		return m.updatePathEdit(msg)
+	}
+	if m.repeatableForm != repeatableFormNone {
+		return m.updateRepeatableForm(msg)
+	}
 	if m.repeatableEditing {
 		switch keyMsg.String() {
 		case "esc":
@@ -422,12 +507,12 @@ func (m Model) updateRepeatableEdit(msg tea.Msg) (Model, tea.Cmd) {
 	case "down", "j":
 		m.moveRepeatable(1)
 	case "a":
-		m.beginRepeatableItem(false)
+		return m, m.beginRepeatableItem(false)
 	case "e":
 		if len(m.repeatableItems) == 0 {
-			m.beginRepeatableItem(false)
+			return m, m.beginRepeatableItem(false)
 		} else {
-			m.beginRepeatableItem(true)
+			return m, m.beginRepeatableItem(true)
 		}
 	case "enter":
 		return m, m.commitRepeatableEdit()
@@ -448,6 +533,22 @@ func (m Model) updateChoiceEdit(msg tea.Msg) (Model, tea.Cmd) {
 	}
 	switch keyMsg.String() {
 	case "esc":
+		if m.repeatableMode {
+			if m.pairColorChoice {
+				m.pairColorChoice = false
+				m.clearChoiceEdit()
+				return m, m.activateFormField()
+			}
+			if m.formActionChoice {
+				return m, m.leaveActionChoiceRaw()
+			}
+			if m.repeatableChoice {
+				m.repeatableChoice = false
+				m.clearChoiceEdit()
+				m.input.Blur()
+				return m, nil
+			}
+		}
 		return m, m.cancelEdit()
 	case "ctrl+c":
 		return m, m.requestQuit()
@@ -462,6 +563,22 @@ func (m Model) updateChoiceEdit(msg tea.Msg) (Model, tea.Cmd) {
 		}
 		m.choiceQuery.Blur()
 		m.clearChoiceEdit()
+		if m.repeatableMode {
+			if m.pairColorChoice {
+				m.pairColorChoice = false
+				m.formRight = m.input.Value()
+				m.input.SetValue(m.formRight)
+				m.formField = 1
+				m.input.Blur()
+				return m, nil
+			}
+			if m.formActionChoice {
+				m.formActionChoice = false
+				return m, m.setActiveFormAction(m.input.Value())
+			}
+			m.repeatableChoice = false
+			return m, m.commitRepeatableItem()
+		}
 		return m, m.commitEdit()
 	case "up":
 		m.moveChoice(-1)
@@ -477,8 +594,23 @@ func (m Model) updateChoiceEdit(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 	case "ctrl+r":
 		m.choiceQuery.Blur()
-		m.clearChoiceEdit()
-		m.status = "Raw value input enabled"
+		if m.repeatableMode {
+			if m.formActionChoice {
+				return m, m.leaveActionChoiceRaw()
+			}
+			if m.pairColorChoice {
+				m.pairColorChoice = false
+				m.clearChoiceEdit()
+				return m, m.activateFormField()
+			}
+			m.clearChoiceEdit()
+			m.repeatableChoice = false
+			m.repeatableEditing = true
+			m.status = "Raw value input enabled"
+		} else {
+			m.clearChoiceEdit()
+			m.status = "Raw value input enabled"
+		}
 		return m, m.input.Focus()
 	}
 
@@ -526,15 +658,29 @@ func (m *Model) beginEdit() tea.Cmd {
 	m.resize()
 	m.editError = nil
 	m.numberMode = option.Kind == schema.KindNumber
-	m.choiceMode = choiceNone
-	m.choiceMatch = nil
-	m.choiceIndex = -1
+	m.clearControlState()
 	m.mode = ModeEdit
+	if option.Multiple {
+		return m.beginMultiEdit(option, value)
+	}
+	if option.Kind == schema.KindDuration {
+		return m.beginDurationEdit(option, value)
+	}
+	if option.Kind == schema.KindPath {
+		return m.beginPathEdit(option, value, false)
+	}
+	if isFontOption(option.Key) && len(m.fontChoices) > 0 {
+		return m.beginChoiceEdit(choiceFont, value)
+	}
 	if option.Key == "theme" && len(m.themeChoices) > 0 {
 		return m.beginChoiceEdit(choiceTheme, value)
 	}
 	if option.Kind == schema.KindColor && option.Key != "palette" && len(m.colorChoices) > 0 {
 		return m.beginChoiceEdit(choiceColor, value)
+	}
+	if option.Kind == schema.KindEnum && len(option.Values) > 0 {
+		m.choiceValues = append([]string(nil), option.Values...)
+		return m.beginChoiceEdit(choiceEnum, value)
 	}
 	return m.input.Focus()
 }
@@ -557,6 +703,7 @@ func (m *Model) commitEdit() tea.Cmd {
 	}
 	m.input.Blur()
 	m.clearChoiceEdit()
+	m.clearControlState()
 	m.numberMode = false
 	m.mode = ModeBrowse
 	m.editError = nil
@@ -579,15 +726,15 @@ func (m *Model) beginRepeatableEdit(option schema.Option) {
 	m.repeatableEditing = false
 	m.repeatableEditExisting = false
 	m.numberMode = false
-	m.choiceMode = choiceNone
+	m.clearControlState()
 	m.editError = nil
 	m.mode = ModeEdit
 }
 
-func (m *Model) beginRepeatableItem(existing bool) {
+func (m *Model) beginRepeatableItem(existing bool) tea.Cmd {
 	if existing {
 		if m.repeatableIndex < 0 || m.repeatableIndex >= len(m.repeatableItems) {
-			return
+			return nil
 		}
 		m.repeatableEditExisting = true
 		m.input.SetValue(m.repeatableItems[m.repeatableIndex].Value)
@@ -597,6 +744,28 @@ func (m *Model) beginRepeatableItem(existing bool) {
 	}
 	if option, ok := m.selectedOption(); ok {
 		m.input.Prompt = option.Key + " = "
+		if isFontOption(option.Key) && len(m.fontChoices) > 0 {
+			m.repeatableChoice = true
+			m.repeatableEditing = false
+			m.mode = ModeEdit
+			return m.beginChoiceEdit(choiceFont, m.input.Value())
+		}
+		if option.Kind == schema.KindPath || repeatablePathKey(option.Key) {
+			m.repeatableEditing = false
+			return m.beginPathEdit(option, m.input.Value(), true)
+		}
+		if option.Key == "keybind" && len(m.actionChoices) > 0 {
+			m.repeatableEditing = false
+			return m.beginKeybindForm(m.input.Value())
+		}
+		if repeatablePairKey(option.Key) {
+			m.repeatableEditing = false
+			return m.beginPairForm(option.Key, m.input.Value())
+		}
+		if option.Key == "command-palette-entry" && len(m.actionChoices) > 0 {
+			m.repeatableEditing = false
+			return m.beginCommandPaletteForm(m.input.Value())
+		}
 	}
 	m.input.Placeholder = "raw Ghostty value"
 	m.input.CharLimit = 4096
@@ -605,6 +774,7 @@ func (m *Model) beginRepeatableItem(existing bool) {
 	m.editError = nil
 	m.repeatableEditing = true
 	m.input.Focus()
+	return nil
 }
 
 func (m *Model) commitRepeatableItem() tea.Cmd {
@@ -613,7 +783,7 @@ func (m *Model) commitRepeatableItem() tea.Cmd {
 		return nil
 	}
 	value := m.input.Value()
-	if err := option.Validate(value); err != nil {
+	if err := m.validateRepeatableValue(option, value); err != nil {
 		m.editError = err
 		m.input.Err = err
 		return nil
@@ -626,6 +796,9 @@ func (m *Model) commitRepeatableItem() tea.Cmd {
 	}
 	m.repeatableEditing = false
 	m.repeatableEditExisting = false
+	m.repeatableChoice = false
+	m.repeatableForm = repeatableFormNone
+	m.clearControlState()
 	m.input.Blur()
 	m.editError = nil
 	m.status = "Value updated; press enter to stage"
@@ -645,7 +818,10 @@ func (m *Model) commitRepeatableEdit() tea.Cmd {
 	m.repeatableItems = nil
 	m.repeatableOriginal = nil
 	m.repeatableEditing = false
+	m.repeatableChoice = false
+	m.repeatableForm = repeatableFormNone
 	m.repeatableIndex = -1
+	m.clearControlState()
 	m.mode = ModeBrowse
 	if m.HasChanges() {
 		m.status = "Staged " + friendlyOptionName(option.Key)
@@ -659,6 +835,7 @@ func (m *Model) cancelEdit() tea.Cmd {
 	m.input.Blur()
 	m.choiceQuery.Blur()
 	m.clearChoiceEdit()
+	m.clearControlState()
 	m.numberMode = false
 	m.editError = nil
 	m.repeatableMode = false
@@ -674,6 +851,7 @@ func (m *Model) cancelEdit() tea.Cmd {
 
 func (m *Model) clearChoiceEdit() {
 	m.choiceMode = choiceNone
+	m.choiceValues = nil
 	m.choiceMatch = nil
 	m.choiceIndex = -1
 }
@@ -1119,15 +1297,37 @@ func (m Model) choiceSelectionValue() string {
 }
 
 func (m Model) choiceCount() int {
-	if m.choiceMode == choiceTheme {
+	switch m.choiceMode {
+	case choiceTheme:
 		return len(m.themeChoices)
+	case choiceFont:
+		return len(m.fontChoices)
+	case choiceAction:
+		if len(m.actionChoices) > 0 {
+			return len(m.actionChoices)
+		}
+		return len(defaultActionChoices())
+	case choiceEnum:
+		return len(m.choiceValues)
+	default:
+		return len(m.colorChoices)
 	}
-	return len(m.colorChoices)
 }
 
 func (m Model) choiceAt(index int) (name, value string) {
-	if m.choiceMode == choiceTheme {
+	switch m.choiceMode {
+	case choiceTheme:
 		return m.themeChoices[index], m.themeChoices[index]
+	case choiceFont:
+		return m.fontChoices[index], m.fontChoices[index]
+	case choiceAction:
+		choices := m.actionChoices
+		if len(choices) == 0 {
+			choices = defaultActionChoices()
+		}
+		return choices[index], choices[index]
+	case choiceEnum:
+		return m.choiceValues[index], m.choiceValues[index]
 	}
 	choice := m.colorChoices[index]
 	return choice.Name, choice.Value

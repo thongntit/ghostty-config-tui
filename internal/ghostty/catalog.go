@@ -37,6 +37,29 @@ func ListColors(binary string) ([]ColorChoice, error) {
 	return parseColorList(output), nil
 }
 
+// ListFonts asks Ghostty for the installed font families. Ghostty prints a
+// family heading followed by indented faces; family headings are the values
+// accepted by font-family and are the least surprising choices to show in a
+// config editor.
+func ListFonts(binary string) ([]string, error) {
+	output, err := actionOutput(binary, "+list-fonts")
+	if err != nil {
+		return nil, fmt.Errorf("list Ghostty fonts: %w", err)
+	}
+	return parseFontList(output), nil
+}
+
+// ListActions asks Ghostty for the action names accepted by keybind and
+// command-palette-entry. Arguments remain a separate form field because they
+// are action-specific and may be arbitrary strings.
+func ListActions(binary string) ([]string, error) {
+	output, err := actionOutput(binary, "+list-actions")
+	if err != nil {
+		return nil, fmt.Errorf("list Ghostty actions: %w", err)
+	}
+	return parseActionList(output), nil
+}
+
 func actionOutput(binary string, args ...string) ([]byte, error) {
 	if strings.TrimSpace(binary) == "" {
 		return nil, fmt.Errorf("Ghostty executable is not configured")
@@ -99,6 +122,43 @@ func parseColorList(output []byte) []ColorChoice {
 		}
 		seen[name] = struct{}{}
 		choices = append(choices, ColorChoice{Name: name, Value: value})
+	}
+	return choices
+}
+
+func parseFontList(output []byte) []string {
+	choices := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, rawLine := range strings.Split(string(output), "\n") {
+		if rawLine == "" || strings.HasPrefix(rawLine, " ") || strings.HasPrefix(rawLine, "\t") {
+			continue
+		}
+		line := strings.TrimSpace(rawLine)
+		if line == "" || strings.HasPrefix(strings.ToLower(line), "error:") {
+			continue
+		}
+		if _, exists := seen[line]; exists {
+			continue
+		}
+		seen[line] = struct{}{}
+		choices = append(choices, line)
+	}
+	return choices
+}
+
+func parseActionList(output []byte) []string {
+	choices := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, rawLine := range strings.Split(string(output), "\n") {
+		line := strings.TrimSpace(rawLine)
+		if line == "" || strings.HasPrefix(strings.ToLower(line), "error:") {
+			continue
+		}
+		if _, exists := seen[line]; exists {
+			continue
+		}
+		seen[line] = struct{}{}
+		choices = append(choices, line)
 	}
 	return choices
 }
