@@ -1,0 +1,6 @@
+# A small fixture for lossless parsing tests.
+theme = catppuccin-mocha
+font-family = JetBrains Mono
+font-size = 14
+keybind = ctrl+shift+enter=new_window
+config-file = ?local.ghostty

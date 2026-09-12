@@ -1,0 +1,13 @@
+# Go build and test output
+/ghostty-config-tui
+/schema-gen
+*.test
+coverage.out
+
+# IDE and OS files
+.DS_Store
+.idea/
+.vscode/
+
+# Local development data
+.tmp/

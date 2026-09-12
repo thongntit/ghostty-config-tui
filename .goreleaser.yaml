@@ -1,0 +1,18 @@
+version: 2
+
+builds:
+  - id: ghostty-config-tui
+    main: ./cmd/ghostty-config-tui
+    binary: ghostty-config-tui
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - formats: [tar.gz]
+
+checksum:
+  name_template: checksums.txt

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "ghostty_version": "bootstrap",
+  "options": [
+    {
+      "key": "theme",
+      "category": "Appearance",
+      "kind": "string",
+      "description": "Theme name or path to a custom theme file."
+    },
+    {
+      "key": "font-family",
+      "category": "Appearance",
+      "kind": "string",
+      "description": "Font family used by Ghostty."
+    },
+    {
+      "key": "font-size",
+      "category": "Appearance",
+      "kind": "number",
+      "description": "Font size in points."
+    },
+    {
+      "key": "background",
+      "category": "Appearance",
+      "kind": "color",
+      "description": "Terminal background color."
+    },
+    {
+      "key": "foreground",
+      "category": "Appearance",
+      "kind": "color",
+      "description": "Terminal foreground color."
+    },
+    {
+      "key": "keybind",
+      "category": "Input",
+      "kind": "repeatable",
+      "description": "Keyboard shortcut and action pair."
+    }
+  ]
+}
