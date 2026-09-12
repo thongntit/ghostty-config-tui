@@ -10,10 +10,14 @@ import (
 )
 
 func main() {
-	configPath := flag.String("config", "", "path to an existing Ghostty config file")
+	configPath := flag.String("config", "", "path to an existing Ghostty config file (overrides discovery)")
 	flag.Parse()
-	if *configPath == "" {
-		fmt.Fprintln(os.Stderr, "ghostty-config-tui: --config PATH is required")
+	configFlagSet := false
+	flag.Visit(func(f *flag.Flag) {
+		configFlagSet = configFlagSet || f.Name == "config"
+	})
+	if configFlagSet && *configPath == "" {
+		fmt.Fprintln(os.Stderr, "ghostty-config-tui: --config PATH cannot be empty")
 		flag.PrintDefaults()
 		os.Exit(2)
 	}

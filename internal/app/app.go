@@ -7,13 +7,15 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/thongntit/ghostty-config-tui/internal/configdoc"
+	"github.com/thongntit/ghostty-config-tui/internal/ghostty"
 	"github.com/thongntit/ghostty-config-tui/internal/schema"
 	"github.com/thongntit/ghostty-config-tui/internal/tui"
 )
 
 const maxConfigSize = 1 << 20
 
-// Options configures one explicitly selected config document.
+// Options configures the config document to edit. An empty ConfigPath selects
+// Ghostty's highest-precedence default config file for the current user.
 type Options struct {
 	ConfigPath string
 }
@@ -24,14 +26,34 @@ type Model struct {
 	ui tui.Model
 }
 
-// New loads one existing config file and creates a dry-run editor for it.
+// New discovers or loads one existing config file and creates a dry-run editor
+// for it. Discovery never creates files or combines multiple config files.
 func New(options Options) (Model, error) {
-	document, _, err := LoadConfig(options.ConfigPath)
+	configPath := options.ConfigPath
+	loadStatus := ""
+	if configPath == "" {
+		selection, err := ghostty.DiscoverConfig()
+		if err != nil {
+			return Model{}, err
+		}
+		configPath = selection.Selected
+		if len(selection.Existing) == 1 {
+			loadStatus = "Loaded discovered config: " + configPath
+		} else {
+			loadStatus = fmt.Sprintf("Loaded %s (highest-precedence of %d Ghostty config files; other files are not combined)", configPath, len(selection.Existing))
+		}
+	} else {
+		loadStatus = "Loaded explicit config: " + configPath
+	}
+
+	document, _, err := LoadConfig(configPath)
 	if err != nil {
 		return Model{}, err
 	}
+	ui := tui.NewModel(schema.BootstrapOptions(), configPath, document)
+	ui.SetStatus(loadStatus)
 	return Model{
-		ui: tui.NewModel(schema.BootstrapOptions(), options.ConfigPath, document),
+		ui: ui,
 	}, nil
 }
 

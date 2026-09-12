@@ -63,6 +63,11 @@ func NewModel(options []schema.Option, configPath string, original configdoc.Doc
 	}
 }
 
+// SetStatus sets startup or interaction feedback shown in the details panel.
+func (m *Model) SetStatus(status string) {
+	m.status = status
+}
+
 func (m Model) Init() tea.Cmd {
 	return nil
 }

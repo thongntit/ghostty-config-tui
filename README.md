@@ -20,20 +20,40 @@ the user's existing config intact.
 
 ## Try the dry-run editor
 
-The current MVP requires an existing config path and never writes to it:
+With no arguments, the app reads the highest-precedence existing Ghostty
+config from the user's standard locations:
+
+```sh
+go run ./cmd/ghostty-config-tui
+```
+
+Use `--config PATH` when you want to select a specific existing file instead:
 
 ```sh
 go run ./cmd/ghostty-config-tui --config testdata/configs/editor-basic.ghostty
 ```
+
+The default lookup order follows [Ghostty's configuration
+docs](https://ghostty.org/docs/config):
+
+1. `$XDG_CONFIG_HOME/ghostty/config.ghostty`
+2. `$XDG_CONFIG_HOME/ghostty/config`
+3. On macOS, `~/Library/Application Support/com.mitchellh.ghostty/config.ghostty`
+4. On macOS, `~/Library/Application Support/com.mitchellh.ghostty/config`
+
+When `XDG_CONFIG_HOME` is unset, `$HOME/.config` is used. The legacy
+`config` filename remains supported. If multiple files exist, the app opens
+the last one in this order and explains that the files are not merged. If no
+file exists, it reports the checked paths and suggests `--config PATH`; it
+does not create a config file.
 
 Browse with `↑`/`k` and `↓`/`j`. Press `enter` or `e` to edit a supported scalar,
 `r` to stage an explicit default reset, `u` to revert a staged option, and `p`
 to preview the candidate document. `q` asks for confirmation when changes are
 staged. Repeatable values such as `keybind` are visible but read-only for now.
 
-The editor loads one explicit file, keeps the original and draft documents
-separate, and previews exact candidate bytes without invoking Ghostty or
-writing any file.
+The editor keeps the original and draft documents separate, and previews exact
+candidate bytes without invoking Ghostty or writing any file.
 
 Architecture and implementation decisions are recorded in
 [`docs/tech-stack.md`](docs/tech-stack.md).
