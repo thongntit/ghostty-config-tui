@@ -46,3 +46,44 @@ func TestSetAppendsWithDetectedLineEnding(t *testing.T) {
 		t.Fatalf("unexpected appended config:\n got %q\nwant %q", got, want)
 	}
 }
+
+func TestSetScalarRejectsDuplicateAssignments(t *testing.T) {
+	document := Parse([]byte("theme = one\ntheme = two\n"))
+
+	if _, err := document.SetScalar("theme", "three"); err != ErrAmbiguousAssignment {
+		t.Fatalf("expected duplicate assignment error, got %v", err)
+	}
+	if got := string(document.Bytes()); got != "theme = one\ntheme = two\n" {
+		t.Fatalf("duplicate rejection changed document: %q", got)
+	}
+}
+
+func TestSetScalarAppendsAndSupportsReset(t *testing.T) {
+	document := Parse([]byte("theme = old\n"))
+	if _, err := document.SetScalar("font-size", "14"); err != nil {
+		t.Fatalf("append failed: %v", err)
+	}
+	if _, err := document.SetScalar("theme", ""); err != nil {
+		t.Fatalf("reset failed: %v", err)
+	}
+
+	want := "theme =\nfont-size = 14\n"
+	if got := string(document.Bytes()); got != want {
+		t.Fatalf("unexpected scalar edit:\n got %q\nwant %q", got, want)
+	}
+}
+
+func TestCloneKeepsOriginalUnchanged(t *testing.T) {
+	original := Parse([]byte("theme = old\n"))
+	draft := original.Clone()
+	if _, err := draft.SetScalar("theme", "new"); err != nil {
+		t.Fatalf("edit failed: %v", err)
+	}
+
+	if got := string(original.Bytes()); got != "theme = old\n" {
+		t.Fatalf("original changed through clone: %q", got)
+	}
+	if got := string(draft.Bytes()); got != "theme = new\n" {
+		t.Fatalf("draft did not change: %q", got)
+	}
+}

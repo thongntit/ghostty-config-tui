@@ -18,5 +18,22 @@ the user's existing config intact.
 - Preserve comments and options the application does not yet understand.
 - Create a backup before writing changes.
 
-The project is in the bootstrap phase. Architecture and implementation details
-will be recorded as the first technical decision is made.
+## Try the dry-run editor
+
+The current MVP requires an existing config path and never writes to it:
+
+```sh
+go run ./cmd/ghostty-config-tui --config testdata/configs/editor-basic.ghostty
+```
+
+Browse with `↑`/`k` and `↓`/`j`. Press `enter` or `e` to edit a supported scalar,
+`r` to stage an explicit default reset, `u` to revert a staged option, and `p`
+to preview the candidate document. `q` asks for confirmation when changes are
+staged. Repeatable values such as `keybind` are visible but read-only for now.
+
+The editor loads one explicit file, keeps the original and draft documents
+separate, and previews exact candidate bytes without invoking Ghostty or
+writing any file.
+
+Architecture and implementation decisions are recorded in
+[`docs/tech-stack.md`](docs/tech-stack.md).

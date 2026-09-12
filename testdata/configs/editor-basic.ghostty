@@ -1,0 +1,9 @@
+# Editor fixture: every untouched line must survive the dry run.
+theme = catppuccin-mocha
+font-family    =    JetBrains Mono
+font-size = 14
+background = 1e1e2e
+foreground = cdd6f4
+keybind = ctrl+shift+enter=new_window
+unknown-option = keep-me
+malformed line stays visible

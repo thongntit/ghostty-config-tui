@@ -9,7 +9,7 @@ import (
 // syntax is intentionally simple, so malformed non-empty lines are retained
 // as Unknown nodes instead of being discarded.
 func Parse(input []byte) Document {
-	document := Document{newline: []byte("\n")}
+	document := Document{newline: []byte("\n"), pendingNewlineAt: -1}
 	if bytes.Contains(input, []byte("\r\n")) {
 		document.newline = []byte("\r\n")
 	}
@@ -64,7 +64,7 @@ func parseLine(line []byte) Node {
 	valueStart := len(rawValue) - len(bytes.TrimLeft(rawValue, " \t"))
 	valueEnd := len(bytes.TrimRight(rawValue, " \t"))
 
-	base.Kind = Assignment
+	base.Kind = AssignmentNode
 	base.Key = key
 	base.Value = string(rawValue[valueStart:valueEnd])
 	base.linePrefix = cloneBytes(rawContent[:equals+1])
